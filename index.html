@@ -15,7 +15,7 @@
 
     body {
       margin: 0;
-      padding: 20px;
+      padding: 16px;
       font-family: Arial, "Noto Sans TC", sans-serif;
       background: #f4f5f7;
       color: #222;
@@ -28,13 +28,13 @@
     }
 
     .header {
-      margin-bottom: 18px;
+      margin-bottom: 16px;
     }
 
     .title {
       font-size: 26px;
       font-weight: bold;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
 
     .subtitle {
@@ -42,35 +42,79 @@
       font-size: 14px;
     }
 
+    .user-box {
+      background: #fff;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 18px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      line-height: 1.6;
+    }
+
+    .section-title {
+      font-size: 21px;
+      font-weight: bold;
+      margin: 8px 0 14px;
+    }
+
     .card {
       background: #fff;
       border-radius: 14px;
       padding: 18px;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.08);
     }
 
-    .status-title {
-      font-size: 18px;
+    .product-name {
+      font-size: 20px;
       font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    .description {
+      font-size: 14px;
+      color: #666;
+      line-height: 1.5;
       margin-bottom: 12px;
     }
 
-    .row {
-      margin-bottom: 10px;
-      line-height: 1.6;
-      word-break: break-all;
+    .info {
+      color: #555;
+      margin-bottom: 6px;
+      line-height: 1.5;
     }
 
-    .label {
-      color: #777;
-      font-size: 13px;
-      margin-bottom: 2px;
-    }
-
-    .value {
+    .summary {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #eee;
       font-size: 16px;
-      font-weight: 500;
+      font-weight: bold;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 16px;
+      padding: 13px;
+      border: 0;
+      border-radius: 9px;
+      background: #06c755;
+      color: #fff;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:active {
+      opacity: 0.8;
+    }
+
+    .message {
+      background: #fff;
+      border-radius: 14px;
+      padding: 16px;
+      color: #666;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
     }
 
     .success {
@@ -82,17 +126,6 @@
       color: #c62828;
       font-weight: bold;
     }
-
-    .loading {
-      color: #555;
-    }
-
-    .footer {
-      margin-top: 20px;
-      text-align: center;
-      color: #999;
-      font-size: 12px;
-    }
   </style>
 </head>
 
@@ -102,103 +135,59 @@
 
     <div class="header">
       <div class="title">HHHS 團購系統</div>
-      <div class="subtitle">LINE LIFF 測試頁面</div>
+      <div class="subtitle">目前開放中的團購</div>
     </div>
 
-    <div class="card">
-      <div class="status-title">登入狀態</div>
-
-      <div id="status" class="loading">
-        準備初始化 LIFF...
-      </div>
+    <div id="userBox" class="user-box">
+      正在確認 LINE 身分...
     </div>
 
-    <div class="card" id="profileCard" style="display:none;">
-      <div class="status-title">LINE 使用者資料</div>
-
-      <div class="row">
-        <div class="label">顯示名稱</div>
-        <div class="value" id="displayName"></div>
-      </div>
-
-      <div class="row">
-        <div class="label">User ID</div>
-        <div class="value" id="userId"></div>
-      </div>
-
-      <div class="row">
-        <div class="label">是否在 LINE 內開啟</div>
-        <div class="value" id="isInClient"></div>
-      </div>
-
-      <div class="row">
-        <div class="label">是否登入</div>
-        <div class="value" id="isLoggedIn"></div>
-      </div>
+    <div class="section-title">
+      目前開放團購
     </div>
 
-    <div class="card">
-      <div class="status-title">頁面資訊</div>
-
-      <div class="row">
-        <div class="label">目前網址</div>
-        <div class="value" id="href"></div>
-      </div>
-
-      <div class="row">
-        <div class="label">Origin</div>
-        <div class="value" id="origin"></div>
-      </div>
-    </div>
-
-    <div class="footer">
-      HHHS Group Buy
+    <div id="list" class="message">
+      等待 LINE 登入...
     </div>
 
   </div>
 
+
   <script>
+
     const LIFF_ID = '2011825033-7byocb0b';
 
+    const API_URL =
+      'https://script.google.com/macros/s/AKfycbyL7dyXlrGU9PNq6jqqcnXrCXKK3Ouhct68vCo2W9qFYzyH2R2SL9y5zCWuiKbDcva1/exec';
+
+    let currentUser = null;
+
+
     window.onload = function () {
-
-      document.getElementById('href').textContent = location.href;
-      document.getElementById('origin').textContent = location.origin;
-
       initLiff();
     };
 
 
     function initLiff() {
 
-      const status = document.getElementById('status');
+      const userBox =
+        document.getElementById('userBox');
 
-      status.innerHTML = '1. LIFF SDK 已載入，正在初始化...';
+      userBox.innerHTML =
+        '正在初始化 LINE...';
 
       liff.init({
         liffId: LIFF_ID
       })
       .then(() => {
 
-        status.innerHTML =
-          '<span class="success">2. LIFF 初始化成功</span>';
-
-        document.getElementById('isInClient').textContent =
-          liff.isInClient() ? '是' : '否';
-
-        document.getElementById('isLoggedIn').textContent =
-          liff.isLoggedIn() ? '是' : '否';
-
         if (!liff.isLoggedIn()) {
 
-          status.innerHTML +=
-            '<br><br>目前尚未登入 LINE。';
+          userBox.innerHTML =
+            '目前尚未登入 LINE';
 
           return null;
         }
-
-        status.innerHTML +=
-          '<br>3. 正在取得 LINE 使用者資料...';
 
         return liff.getProfile();
       })
@@ -208,30 +197,214 @@
           return;
         }
 
-        document.getElementById('profileCard').style.display = 'block';
+        currentUser = profile;
 
-        document.getElementById('displayName').textContent =
-          profile.displayName || '';
+        userBox.innerHTML = `
+          你好，<strong>${escapeHtml(profile.displayName)}</strong><br>
+          <span class="success">LINE 身分辨識成功</span>
+        `;
 
-        document.getElementById('userId').textContent =
-          profile.userId || '';
-
-        status.innerHTML =
-          '<span class="success">LIFF 初始化成功，使用者辨識完成。</span>';
+        loadGroupBuys();
       })
       .catch(error => {
 
         console.error(error);
 
-        status.innerHTML =
-          '<span class="error">LIFF 初始化失敗</span>' +
-          '<br><br>' +
-          'name：' + escapeHtml(error.name || '無') +
-          '<br>' +
-          'code：' + escapeHtml(error.code || '無') +
-          '<br>' +
-          'message：' + escapeHtml(error.message || String(error));
+        userBox.innerHTML = `
+          <span class="error">LINE 身分確認失敗</span><br>
+          ${escapeHtml(error.message || String(error))}
+        `;
       });
+    }
+
+
+    function loadGroupBuys() {
+
+      const list =
+        document.getElementById('list');
+
+      list.className =
+        'message';
+
+      list.innerHTML =
+        '正在載入團購資料...';
+
+
+      window.handleGroupBuys = function(result) {
+
+        if (!result || !result.success) {
+
+          list.innerHTML =
+            '<span class="error">團購資料讀取失敗</span>';
+
+          return;
+        }
+
+
+        const items =
+          result.data || [];
+
+
+        if (items.length === 0) {
+
+          list.innerHTML =
+            '目前沒有開放中的團購';
+
+          return;
+        }
+
+
+        list.className = '';
+
+        list.innerHTML = '';
+
+
+        items.forEach(item => {
+
+          const card =
+            document.createElement('div');
+
+          card.className =
+            'card';
+
+
+          const description =
+            item.description
+              ? `
+                <div class="description">
+                  ${escapeHtml(item.description)}
+                </div>
+              `
+              : '';
+
+
+          card.innerHTML = `
+
+            <div class="product-name">
+              ${escapeHtml(item.name)}
+            </div>
+
+            ${description}
+
+            <div class="info">
+              單價：
+              $${formatNumber(item.price)}
+              /
+              ${escapeHtml(item.unit)}
+            </div>
+
+            <div class="info">
+              截止：
+              ${formatDate(item.endAt)}
+            </div>
+
+            <div class="summary">
+              ${Number(item.peopleCount || 0)} 人
+              ｜
+              ${Number(item.totalQuantity || 0)}
+              ${escapeHtml(item.unit)}
+            </div>
+
+            <button
+              type="button"
+              onclick="openOrder('${escapeJs(item.buyId)}')"
+            >
+              我要團購
+            </button>
+          `;
+
+          list.appendChild(card);
+        });
+      };
+
+
+      const oldScript =
+        document.getElementById('groupBuyJsonp');
+
+      if (oldScript) {
+        oldScript.remove();
+      }
+
+
+      const script =
+        document.createElement('script');
+
+      script.id =
+        'groupBuyJsonp';
+
+      script.src =
+        API_URL
+        + '?action=openGroupBuys'
+        + '&callback=handleGroupBuys'
+        + '&t='
+        + Date.now();
+
+
+      script.onerror = function () {
+
+        list.className =
+          'message';
+
+        list.innerHTML =
+          '<span class="error">無法連線至團購資料庫</span>';
+      };
+
+
+      document.body.appendChild(script);
+    }
+
+
+    function openOrder(buyId) {
+
+      if (!currentUser) {
+
+        alert('尚未取得 LINE 使用者資料');
+
+        return;
+      }
+
+      alert(
+        '使用者：'
+        + currentUser.displayName
+        + '\n\n團購項目：'
+        + buyId
+      );
+    }
+
+
+    function formatDate(value) {
+
+      if (!value) {
+        return '未設定';
+      }
+
+      const date =
+        new Date(value);
+
+      if (isNaN(date.getTime())) {
+        return value;
+      }
+
+      return date.toLocaleString(
+        'zh-TW',
+        {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }
+      );
+    }
+
+
+    function formatNumber(value) {
+
+      const number =
+        Number(value || 0);
+
+      return number.toLocaleString('zh-TW');
     }
 
 
@@ -243,6 +416,14 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+    }
+
+
+    function escapeJs(value) {
+
+      return String(value ?? '')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'");
     }
 
   </script>
