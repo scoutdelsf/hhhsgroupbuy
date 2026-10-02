@@ -109,6 +109,11 @@
       opacity: 0.8;
     }
 
+    .secondary-button {
+      background: #888;
+      margin-top: 8px;
+    }
+
     .message {
       background: #fff;
       border-radius: 14px;
@@ -126,6 +131,50 @@
       color: #c62828;
       font-weight: bold;
     }
+
+    .quantity-box {
+      margin-top: 18px;
+    }
+
+    .quantity-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+
+    .quantity-input {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid #ccc;
+      border-radius: 9px;
+      font-size: 22px;
+      text-align: center;
+      outline: none;
+    }
+
+    .quantity-input:focus {
+      border-color: #06c755;
+    }
+
+    .order-total {
+      margin-top: 18px;
+      padding: 16px;
+      background: #f7f7f7;
+      border-radius: 10px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .order-total-price {
+      font-size: 26px;
+      margin-top: 4px;
+    }
+
+    .hint {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #888;
+    }
   </style>
 </head>
 
@@ -135,19 +184,106 @@
 
     <div class="header">
       <div class="title">HHHS 團購系統</div>
-      <div class="subtitle">目前開放中的團購</div>
+      <div class="subtitle">LINE 團購小幫手</div>
     </div>
 
     <div id="userBox" class="user-box">
       正在確認 LINE 身分...
     </div>
 
-    <div class="section-title">
-      目前開放團購
+    <!-- 團購首頁 -->
+    <div id="homePanel">
+
+      <div class="section-title">
+        目前開放團購
+      </div>
+
+      <div id="list" class="message">
+        等待 LINE 登入...
+      </div>
+
     </div>
 
-    <div id="list" class="message">
-      等待 LINE 登入...
+    <!-- 訂購頁 -->
+    <div id="orderPanel" style="display:none;">
+
+      <div class="section-title">
+        我的訂購
+      </div>
+
+      <div class="card">
+
+        <div id="orderProductName" class="product-name"></div>
+
+        <div id="orderDescription" class="description" style="display:none;"></div>
+
+        <div class="info">
+          單價：
+          <strong id="orderPrice"></strong>
+          /
+          <span id="orderUnit"></span>
+        </div>
+
+        <div class="info">
+          截止：
+          <span id="orderEndAt"></span>
+        </div>
+
+        <div class="info">
+          目前團購：
+          <strong id="orderPeopleCount">0</strong> 人｜
+          <strong id="orderTotalQuantity">0</strong>
+          <span id="orderSummaryUnit"></span>
+        </div>
+
+        <div class="quantity-box">
+
+          <label class="quantity-label" for="orderQty">
+            購買數量
+          </label>
+
+          <input
+            type="number"
+            id="orderQty"
+            class="quantity-input"
+            min="0"
+            step="1"
+            value="1"
+            inputmode="numeric"
+            oninput="updateOrderTotal()"
+          >
+
+          <div class="hint">
+            可直接輸入需要的總數量，例如：10
+          </div>
+
+        </div>
+
+        <div class="order-total">
+          預估金額
+
+          <div id="orderTotal" class="order-total-price">
+            $0
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onclick="confirmOrder()"
+        >
+          確認數量
+        </button>
+
+        <button
+          type="button"
+          class="secondary-button"
+          onclick="closeOrder()"
+        >
+          返回團購列表
+        </button>
+
+      </div>
+
     </div>
 
   </div>
@@ -161,6 +297,9 @@
       'https://script.google.com/macros/s/AKfycbyL7dyXlrGU9PNq6jqqcnXrCXKK3Ouhct68vCo2W9qFYzyH2R2SL9y5zCWuiKbDcva1/exec';
 
     let currentUser = null;
+    let currentBuy = null;
+
+    window.currentGroupBuys = [];
 
 
     window.onload = function () {
@@ -190,6 +329,7 @@
         }
 
         return liff.getProfile();
+
       })
       .then(profile => {
 
@@ -205,6 +345,7 @@
         `;
 
         loadGroupBuys();
+
       })
       .catch(error => {
 
@@ -214,6 +355,7 @@
           <span class="error">LINE 身分確認失敗</span><br>
           ${escapeHtml(error.message || String(error))}
         `;
+
       });
     }
 
@@ -243,6 +385,10 @@
 
         const items =
           result.data || [];
+
+
+        window.currentGroupBuys =
+          items;
 
 
         if (items.length === 0) {
@@ -347,6 +493,7 @@
 
         list.innerHTML =
           '<span class="error">無法連線至團購資料庫</span>';
+
       };
 
 
@@ -363,12 +510,234 @@
         return;
       }
 
+
+      const item =
+        window.currentGroupBuys.find(
+          x => String(x.buyId) === String(buyId)
+        );
+
+
+      if (!item) {
+
+        alert('找不到這個團購項目');
+
+        return;
+      }
+
+
+      currentBuy =
+        item;
+
+
+      document.getElementById(
+        'orderProductName'
+      ).textContent =
+        item.name || '';
+
+
+      const description =
+        document.getElementById(
+          'orderDescription'
+        );
+
+
+      if (item.description) {
+
+        description.textContent =
+          item.description;
+
+        description.style.display =
+          'block';
+
+      } else {
+
+        description.textContent =
+          '';
+
+        description.style.display =
+          'none';
+
+      }
+
+
+      document.getElementById(
+        'orderPrice'
+      ).textContent =
+        '$' + formatNumber(item.price);
+
+
+      document.getElementById(
+        'orderUnit'
+      ).textContent =
+        item.unit || '';
+
+
+      document.getElementById(
+        'orderEndAt'
+      ).textContent =
+        formatDate(item.endAt);
+
+
+      document.getElementById(
+        'orderPeopleCount'
+      ).textContent =
+        Number(item.peopleCount || 0);
+
+
+      document.getElementById(
+        'orderTotalQuantity'
+      ).textContent =
+        Number(item.totalQuantity || 0);
+
+
+      document.getElementById(
+        'orderSummaryUnit'
+      ).textContent =
+        item.unit || '';
+
+
+      document.getElementById(
+        'orderQty'
+      ).value =
+        1;
+
+
+      document.getElementById(
+        'homePanel'
+      ).style.display =
+        'none';
+
+
+      document.getElementById(
+        'orderPanel'
+      ).style.display =
+        'block';
+
+
+      updateOrderTotal();
+
+
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    }
+
+
+    function updateOrderTotal() {
+
+      if (!currentBuy) {
+        return;
+      }
+
+
+      const qty =
+        Number(
+          document.getElementById(
+            'orderQty'
+          ).value || 0
+        );
+
+
+      const price =
+        Number(
+          currentBuy.price || 0
+        );
+
+
+      const total =
+        qty * price;
+
+
+      document.getElementById(
+        'orderTotal'
+      ).textContent =
+        '$' + formatNumber(total);
+    }
+
+
+    function confirmOrder() {
+
+      if (!currentBuy) {
+        return;
+      }
+
+
+      const qty =
+        Number(
+          document.getElementById(
+            'orderQty'
+          ).value || 0
+        );
+
+
+      if (
+        !Number.isInteger(qty)
+        || qty < 0
+      ) {
+
+        alert('請輸入正確的整數數量');
+
+        return;
+      }
+
+
+      if (qty === 0) {
+
+        alert(
+          '數量為 0。\n之後正式寫入時，這會代表取消這筆訂購。'
+        );
+
+        return;
+      }
+
+
+      const total =
+        qty
+        * Number(
+          currentBuy.price || 0
+        );
+
+
       alert(
-        '使用者：'
-        + currentUser.displayName
-        + '\n\n團購項目：'
-        + buyId
+        '訂購確認\n\n'
+        + '商品：'
+        + currentBuy.name
+        + '\n'
+        + '數量：'
+        + qty
+        + currentBuy.unit
+        + '\n'
+        + '金額：$'
+        + formatNumber(total)
+        + '\n\n'
+        + '目前尚未寫入 Google Sheet。'
       );
+    }
+
+
+    function closeOrder() {
+
+      currentBuy =
+        null;
+
+
+      document.getElementById(
+        'orderPanel'
+      ).style.display =
+        'none';
+
+
+      document.getElementById(
+        'homePanel'
+      ).style.display =
+        'block';
+
+
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
     }
 
 
@@ -378,12 +747,15 @@
         return '未設定';
       }
 
+
       const date =
         new Date(value);
+
 
       if (isNaN(date.getTime())) {
         return value;
       }
+
 
       return date.toLocaleString(
         'zh-TW',
@@ -404,7 +776,10 @@
       const number =
         Number(value || 0);
 
-      return number.toLocaleString('zh-TW');
+
+      return number.toLocaleString(
+        'zh-TW'
+      );
     }
 
 
