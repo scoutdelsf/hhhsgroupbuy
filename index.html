@@ -998,7 +998,7 @@ function renderAdminList() {
   if (!window.adminGroupBuys.length) {
     box.className = 'message';
     box.innerHTML = `
-      <strong>目前你沒有開團</strong>
+      <strong>${isAdmin ? '目前此群組沒有開團資料' : '目前你沒有開團'}</strong>
       <div class="muted" style="margin-top:6px;">
         可以點「我要開團」建立第一個團購。
       </div>
@@ -1029,14 +1029,27 @@ function renderAdminList() {
 
     div.className = 'admin-row';
 
-    const canEdit =
-      status === 'PENDING'
-      ||
-      status === 'DRAFT'
-      ||
-      status === 'OPEN';
+    const isOwner =
+      currentUser
+      &&
+      String(item.ownerUserId || '').trim()
+      ===
+      String(currentUser.userId || '').trim();
 
-    const canClose =
+    const canOwnerEdit =
+      isOwner
+      &&
+      (
+        status === 'PENDING'
+        ||
+        status === 'DRAFT'
+        ||
+        status === 'OPEN'
+      );
+
+    const canOwnerClose =
+      isOwner
+      &&
       status === 'OPEN';
 
     const statusText =
@@ -1068,7 +1081,7 @@ function renderAdminList() {
 
       ${
         status === 'PENDING'
-          ? `<div class="muted" style="margin-top:6px;">等待 Super Admin 審核，審核前仍可修改資料。</div>`
+          ? `<div class="muted" style="margin-top:6px;">等待 Super Admin 審核。</div>`
           : ''
       }
 
@@ -1080,14 +1093,32 @@ function renderAdminList() {
 
       <div class="admin-actions">
         ${
-          canEdit
+          canOwnerEdit
             ? `<button class="outline" onclick="openEditForm('${escapeJs(item.buyId)}')">修改</button>`
             : ''
         }
 
         ${
-          canClose
+          canOwnerClose
             ? `<button class="danger" onclick="changeGroupBuyStatus('adminCloseGroupBuy','${escapeJs(item.buyId)}','確定要關閉這一團嗎？')">關團</button>`
+            : ''
+        }
+
+        ${
+          isAdmin && status === 'PENDING'
+            ? `<button onclick="superAdminAction('adminApproveGroupBuy','${escapeJs(item.buyId)}','確定核准這一團並立即開放嗎？')">核准開團</button>`
+            : ''
+        }
+
+        ${
+          isAdmin && status !== 'CLOSED' && status !== 'SUSPENDED'
+            ? `<button class="outline" onclick="superAdminAction('adminSuspendGroupBuy','${escapeJs(item.buyId)}','確定要停權這一團嗎？')">停權</button>`
+            : ''
+        }
+
+        ${
+          isAdmin && status !== 'CLOSED'
+            ? `<button class="danger" onclick="superAdminAction('adminForceCloseGroupBuy','${escapeJs(item.buyId)}','確定要由 Super Admin 強制關閉這一團嗎？')">強制關團</button>`
             : ''
         }
       </div>
@@ -1385,6 +1416,71 @@ async function saveAdminForm() {
     alert(error.message || String(error));
   }
 }
+
+
+async function superAdminAction(
+  action,
+  buyId,
+  confirmText
+) {
+  if (!isAdmin) {
+    alert('你沒有 Super Admin 權限');
+    return;
+  }
+
+  if (
+    confirmText
+    &&
+    !confirm(confirmText)
+  ) {
+    return;
+  }
+
+  setAdminBusy(
+    true,
+    '處理中…',
+    '正在更新團購狀態。'
+  );
+
+  try {
+    const result =
+      await adminPost(
+        action,
+        { buyId: buyId }
+      );
+
+    setAdminBusy(false);
+
+    if (!result.success) {
+      alert(
+        result.message
+        ||
+        '操作失敗'
+      );
+      return;
+    }
+
+    alert(
+      result.message
+      ||
+      '操作完成'
+    );
+
+    loadAdminList();
+    loadOpenGroupBuys();
+    loadClosedGroupBuys();
+
+  } catch (error) {
+    setAdminBusy(false);
+
+    alert(
+      error.message
+      ||
+      String(error)
+    );
+  }
+}
+
 
 async function changeGroupBuyStatus(action, buyId, message) {
   if (!confirm(message)) return;
