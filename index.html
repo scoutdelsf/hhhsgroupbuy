@@ -344,6 +344,17 @@
       overflow: hidden;
     }
 
+
+    .app-version {
+      margin-left: 8px;
+      font-size: 11px;
+      font-weight: 500;
+      color: #9aa5a0;
+      letter-spacing: .02em;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
 </style>
 </head>
 
@@ -351,7 +362,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統</div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.8.1</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -430,6 +441,9 @@
     <div id="adminList" class="message">正在載入管理資料...</div>
     <div id="debugGroupBuysButton" style="display:none; margin-top:12px;">
       <button class="outline" onclick="showGroupBuyDebug()">檢查群組團購資料</button>
+      <button id="bindBlankGroupBuysButton" style="margin-top:8px;" onclick="bindBlankGroupBuysToCurrentGroup()">
+        將空白團購綁定到目前群組
+      </button>
     </div>
     <div id="debugGroupBuysBox" class="message" style="display:none; margin-top:10px;"></div>
   </div>
@@ -1431,6 +1445,67 @@ async function saveAdminForm() {
   }
 }
 
+
+
+
+async function bindBlankGroupBuysToCurrentGroup() {
+  if (!isAdmin) {
+    alert('只有 Super Admin 可以執行資料修復');
+    return;
+  }
+
+  if (
+    !confirm(
+      '只會把 GroupBuys 中 groupId 為空白的資料綁定到目前 LINE 群組；已經有 groupId 的資料不會更動。確定執行嗎？'
+    )
+  ) {
+    return;
+  }
+
+  setAdminBusy(
+    true,
+    '修復資料中…',
+    '正在把空白 groupId 綁定到目前 LINE 群組。'
+  );
+
+  try {
+    const result =
+      await adminPost(
+        'adminBindBlankGroupBuysToCurrentGroup',
+        {}
+      );
+
+    setAdminBusy(false);
+
+    if (!result.success) {
+      alert(
+        result.message
+        ||
+        '修復失敗'
+      );
+      return;
+    }
+
+    alert(
+      result.message
+      ||
+      '修復完成'
+    );
+
+    showGroupBuyDebug();
+    loadAdminList();
+    loadOpenGroupBuys();
+    loadClosedGroupBuys();
+
+  } catch (error) {
+    setAdminBusy(false);
+    alert(
+      error.message
+      ||
+      String(error)
+    );
+  }
+}
 
 
 function showGroupBuyDebug() {
