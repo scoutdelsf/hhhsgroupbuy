@@ -892,8 +892,8 @@ function adminPost(action, payload) {
 
     const timeout = setTimeout(function() {
       delete pendingAdminRequests[requestId];
-      reject(new Error('管理操作逾時'));
-    }, 12000);
+      reject(new Error('管理操作逾時，請確認 GAS 已重新部署，或稍後再試'));
+    }, 30000);
 
     pendingAdminRequests[requestId] = {
       resolve: resolve,
