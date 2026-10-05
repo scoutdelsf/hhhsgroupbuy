@@ -418,6 +418,19 @@
       height: 48px;
     }
 
+
+    .card-action-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .card-action-row button {
+      width: 100%;
+      margin: 0;
+    }
+
 </style>
 </head>
 
@@ -425,7 +438,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.9.0</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.9.1</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -927,7 +940,10 @@ function renderCarousel(items, carouselId, dotsId, loadingId, openMode) {
         </div>
 
         ${openMode
-          ? `<button onclick="openOrder('${escapeJs(item.buyId)}')">我要團購</button>`
+          ? `<div class="card-action-row">
+          <button onclick="openOrder('${escapeJs(item.buyId)}')">我要團購</button>
+          <button class="outline" onclick="openParticipants('${escapeJs(item.buyId)}')">有誰跟團</button>
+        </div>`
           : ''}
       </div>
     `;
@@ -968,6 +984,34 @@ function setupCarouselDots(carousel, dotsContainer) {
       });
     }, 60);
   });
+}
+
+
+
+function openParticipants(buyId) {
+  const item =
+    (window.currentGroupBuys || [])
+      .find(x =>
+        String(x.buyId)
+        ===
+        String(buyId)
+      );
+
+  if (!item) {
+    alert('找不到團購資料');
+    return;
+  }
+
+  alert(
+    '「有誰跟團」名單功能會接在下一步。\n\n'
+    + item.name
+    + '\n目前：'
+    + Number(item.peopleCount || 0)
+    + ' 人，共 '
+    + Number(item.totalQuantity || 0)
+    + ' '
+    + (item.unit || '')
+  );
 }
 
 
