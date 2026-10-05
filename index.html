@@ -265,6 +265,85 @@
       cursor: not-allowed;
     }
 
+
+    /* ===== 開團 / 修改團購 Modal ===== */
+    #adminFormPanel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 8000;
+      margin: 0 !important;
+      padding: 18px 12px !important;
+      background: rgba(25, 48, 34, .42);
+      backdrop-filter: blur(3px);
+      overflow-y: auto;
+    }
+
+    #adminFormPanel.show {
+      display: flex !important;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    .admin-form-modal {
+      width: min(620px, 100%);
+      margin: 20px auto 40px;
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 18px 54px rgba(24, 68, 39, .22);
+      overflow: hidden;
+    }
+
+    .admin-form-modal-header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px;
+      background: #f5fbf7;
+      border-bottom: 1px solid var(--gb-line);
+    }
+
+    .admin-form-modal-header .section-title {
+      margin: 0;
+      padding: 0;
+      border-bottom: 0;
+    }
+
+    .modal-close-button {
+      width: 38px;
+      height: 38px;
+      min-width: 38px;
+      padding: 0;
+      border-radius: 50%;
+      font-size: 22px;
+      line-height: 1;
+      background: #fff;
+      color: #52665a;
+      border: 1px solid var(--gb-line);
+    }
+
+    .admin-form-modal-body {
+      padding: 18px;
+    }
+
+    .admin-form-actions {
+      position: sticky;
+      bottom: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding-top: 16px;
+      background: #fff;
+    }
+
+    body.modal-open {
+      overflow: hidden;
+    }
+
 </style>
 </head>
 
@@ -291,7 +370,7 @@
       <div class="section-title">開團功能</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <button onclick="openCreateForm()">＋ 我要開團</button>
-        <button class="outline" onclick="openAdminPanel()">我的開團</button>
+        <button class="outline" onclick="openAdminPanel()">開團管理專區</button>
       </div>
     </div>
 
@@ -341,7 +420,7 @@
 
 
   <div id="adminPanel" style="display:none;">
-    <div class="section-title">我的開團管理</div>
+    <div class="section-title" id="adminPanelTitle">我的開團管理</div>
 
     <div class="card">
       <button onclick="openCreateForm()">＋ 新增團購</button>
@@ -352,58 +431,64 @@
   </div>
 
 
-  <div id="adminFormPanel" style="display:none;">
-    <div class="section-title" id="adminFormTitle">新增團購</div>
-
-    <div class="card">
-      <input type="hidden" id="adminBuyId">
-
-      <label>商品名稱</label>
-      <input id="adminName" type="text">
-
-      <label>商品說明</label>
-      <textarea id="adminDescription"></textarea>
-
-      <label>單價</label>
-      <input id="adminPrice" type="number" min="0" step="1">
-
-      <label>單位</label>
-      <input id="adminUnit" type="text" placeholder="例如：盒、顆、條">
-
-      <label>商品圖片</label>
-      <input
-        id="adminImageFile"
-        class="file-input"
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
-        onchange="previewAdminImage(this)"
-      >
-
-      <div id="adminImagePreviewBox" class="image-preview-box">
-        <img id="adminImagePreview" alt="商品圖片預覽">
+  <div id="adminFormPanel" style="display:none;" onclick="handleAdminModalBackdrop(event)">
+    <div class="admin-form-modal" role="dialog" aria-modal="true" aria-labelledby="adminFormTitle">
+      <div class="admin-form-modal-header">
+        <div class="section-title" id="adminFormTitle">新增團購</div>
+        <button type="button" class="modal-close-button" onclick="closeAdminForm()" aria-label="關閉">×</button>
       </div>
 
-      <input id="adminImageUrl" type="hidden">
+      <div class="admin-form-modal-body">
+        <input type="hidden" id="adminBuyId">
 
-      <div class="muted" style="margin-top:8px;">
-        選擇圖片後會先在此頁預覽；儲存時自動上傳到 Google Drive。
-        修改團購時若不重新選照片，會保留原圖片。
+        <label>商品名稱</label>
+        <input id="adminName" type="text">
+
+        <label>商品說明</label>
+        <textarea id="adminDescription"></textarea>
+
+        <label>單價</label>
+        <input id="adminPrice" type="number" min="0" step="1">
+
+        <label>單位</label>
+        <input id="adminUnit" type="text" placeholder="例如：盒、顆、條">
+
+        <label>商品圖片</label>
+        <input
+          id="adminImageFile"
+          class="file-input"
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          onchange="previewAdminImage(this)"
+        >
+
+        <div id="adminImagePreviewBox" class="image-preview-box">
+          <img id="adminImagePreview" alt="商品圖片預覽">
+        </div>
+
+        <input id="adminImageUrl" type="hidden">
+
+        <div class="muted" style="margin-top:8px;">
+          選擇圖片後會先預覽；儲存時自動上傳到 Google Drive。
+          修改團購時若不重新選照片，會保留原圖片。
+        </div>
+
+        <label>開始時間</label>
+        <input id="adminStartAt" type="datetime-local">
+
+        <label>預定截止時間</label>
+        <input id="adminEndAt" type="datetime-local">
+
+        <input id="adminStatus" type="hidden" value="PENDING">
+        <div id="newStatusLabel" class="muted" style="margin-top:12px;">
+          新建立的團購會先送出審核，通過後才會出現在「開團中」。
+        </div>
+
+        <div class="admin-form-actions">
+          <button id="adminSaveButton" onclick="saveAdminForm()">儲存</button>
+          <button type="button" class="secondary" onclick="closeAdminForm()">取消</button>
+        </div>
       </div>
-
-      <label>開始時間</label>
-      <input id="adminStartAt" type="datetime-local">
-
-      <label>預定截止時間</label>
-      <input id="adminEndAt" type="datetime-local">
-
-      <label id="newStatusLabel">建立狀態</label>
-      <select id="adminStatus">
-        <option value="DRAFT">先存草稿</option>
-        <option value="OPEN">直接開團</option>
-      </select>
-
-      <button id="adminSaveButton" onclick="saveAdminForm()">儲存</button>
-      <button class="secondary" onclick="closeAdminForm()">取消</button>
     </div>
   </div>
 
@@ -869,7 +954,17 @@ function loadAdminList() {
       return;
     }
 
-    window.adminGroupBuys = (result.data || []).filter(isMyGroupBuy);
+    window.adminGroupBuys = result.data || [];
+
+    const panelTitle =
+      document.getElementById('adminPanelTitle');
+
+    if (panelTitle) {
+      panelTitle.textContent =
+        result.isSuperAdmin
+          ? '開團管理專區（Super Admin）'
+          : '我的開團管理';
+    }
     renderAdminList();
   };
 
@@ -966,6 +1061,12 @@ function renderAdminList() {
       </div>
 
       ${
+        item.ownerLineName
+          ? `<div class="muted" style="margin-top:5px;">開團主：${escapeHtml(item.ownerLineName)}</div>`
+          : ''
+      }
+
+      ${
         status === 'PENDING'
           ? `<div class="muted" style="margin-top:6px;">等待 Super Admin 審核，審核前仍可修改資料。</div>`
           : ''
@@ -1012,8 +1113,14 @@ function openCreateForm() {
   document.getElementById('adminStatus').style.display = 'block';
   document.getElementById('newStatusLabel').style.display = 'block';
 
-  document.getElementById('adminPanel').style.display = 'none';
-  document.getElementById('adminFormPanel').style.display = 'block';
+  const panel = document.getElementById('adminFormPanel');
+  panel.classList.add('show');
+  document.body.classList.add('modal-open');
+
+  setTimeout(function() {
+    const nameInput = document.getElementById('adminName');
+    if (nameInput) nameInput.focus();
+  }, 50);
 }
 
 
@@ -1050,14 +1157,39 @@ function openEditForm(buyId) {
   document.getElementById('adminStatus').style.display = 'none';
   document.getElementById('newStatusLabel').style.display = 'none';
 
-  document.getElementById('adminPanel').style.display = 'none';
-  document.getElementById('adminFormPanel').style.display = 'block';
+  const panel = document.getElementById('adminFormPanel');
+  panel.classList.add('show');
+  document.body.classList.add('modal-open');
+
+  setTimeout(function() {
+    const nameInput = document.getElementById('adminName');
+    if (nameInput) nameInput.focus();
+  }, 50);
 }
 
 
 function closeAdminForm() {
-  document.getElementById('adminFormPanel').style.display = 'none';
-  document.getElementById('adminPanel').style.display = 'block';
+  const panel =
+    document.getElementById('adminFormPanel');
+
+  if (panel) {
+    panel.classList.remove('show');
+  }
+
+  document.body.classList.remove('modal-open');
+}
+
+
+function handleAdminModalBackdrop(event) {
+  if (
+    event
+    &&
+    event.target
+    &&
+    event.target.id === 'adminFormPanel'
+  ) {
+    closeAdminForm();
+  }
 }
 
 
@@ -1231,10 +1363,21 @@ async function saveAdminForm() {
 
     alert(result.message || '儲存成功');
 
-    document.getElementById('adminFormPanel').style.display = 'none';
-    document.getElementById('adminPanel').style.display = 'block';
+    closeAdminForm();
 
-    loadAdminList();
+    const adminPanel =
+      document.getElementById('adminPanel');
+
+    if (
+      adminPanel
+      &&
+      adminPanel.style.display !== 'none'
+    ) {
+      loadAdminList();
+    }
+
+    loadOpenGroupBuys();
+    loadClosedGroupBuys();
 
   } catch (error) {
     // 無論錯誤發生在哪裡，都一定先退掉遮罩
@@ -1599,6 +1742,21 @@ function escapeJs(value) {
     .replace(/\\/g, '\\\\')
     .replace(/'/g, "\\'");
 }
+
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') {
+    const panel = document.getElementById('adminFormPanel');
+
+    if (
+      panel
+      &&
+      panel.classList.contains('show')
+    ) {
+      closeAdminForm();
+    }
+  }
+});
+
 </script>
 
 </body>
