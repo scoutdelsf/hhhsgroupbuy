@@ -118,7 +118,14 @@
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
-  <div id="userBox" class="user-box">正在確認 LINE 身分...</div>
+  <div id="userBox" class="user-box">
+    正在確認 LINE 身分...
+  </div>
+
+  <div id="copyUserIdBox" class="user-box" style="display:none;">
+    <div class="muted" style="margin-bottom:8px;">管理者設定用</div>
+    <button class="outline" onclick="copyMyUserId()">複製我的 LINE User ID</button>
+  </div>
 
   <div id="homePanel">
 
@@ -264,6 +271,8 @@ async function initLiff() {
       你好，<strong>${escapeHtml(currentUser.displayName)}</strong><br>
       <span class="success">LINE 身分辨識成功</span>
     `;
+
+    document.getElementById('copyUserIdBox').style.display = 'block';
 
     checkAdminStatus();
     loadOpenGroupBuys();
@@ -784,6 +793,50 @@ window.addEventListener('message', function(event) {
 
   pending.resolve(event.data.result);
 });
+
+
+
+function copyMyUserId() {
+  if (!currentUser || !currentUser.userId) {
+    alert('尚未取得 LINE User ID');
+    return;
+  }
+
+  const userId = currentUser.userId;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(userId)
+      .then(function() {
+        alert('已複製 LINE User ID：\n' + userId);
+      })
+      .catch(function() {
+        fallbackCopyUserId(userId);
+      });
+  } else {
+    fallbackCopyUserId(userId);
+  }
+}
+
+
+function fallbackCopyUserId(userId) {
+  const textarea = document.createElement('textarea');
+  textarea.value = userId;
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  try {
+    document.execCommand('copy');
+    alert('已複製 LINE User ID：\n' + userId);
+  } catch (error) {
+    prompt('請手動複製你的 LINE User ID：', userId);
+  }
+
+  textarea.remove();
+}
 
 
 /* =========================
