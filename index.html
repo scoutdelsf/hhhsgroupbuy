@@ -277,10 +277,12 @@
   </div>
 
   <div id="userBox" class="user-box">正在確認 LINE 身分...</div>
-  <div id="copyUserIdBox" class="copy-id-row">
-    <button type="button" class="outline" onclick="copyMyUserId()">
-      複製我的 LINE User ID
-    </button>
+
+  <div id="groupAccessMessage" class="message" style="display:none; margin-top:12px;">
+    <strong>請從 LINE 群組內開啟團購系統</strong>
+    <div class="muted" style="margin-top:6px;">
+      此團購系統依 LINE 群組區分資料。請回到要使用的 LINE 群組，再從群組內開啟本系統。
+    </div>
   </div>
 
   <div id="homePanel">
@@ -425,6 +427,7 @@ const API_URL =
 const LOAD_TIMEOUT_MS = 8000;
 
 let currentUser = null;
+let currentGroupId = '';
 let currentBuy = null;
 let isAdmin = false;
 
@@ -454,6 +457,40 @@ async function initLiff() {
 
     currentUser = await liff.getProfile();
 
+    const context = liff.getContext();
+
+    if (
+      !context
+      ||
+      context.type !== 'group'
+      ||
+      !context.groupId
+    ) {
+      currentGroupId = '';
+
+      const groupMessage =
+        document.getElementById('groupAccessMessage');
+
+      if (groupMessage) {
+        groupMessage.style.display = 'block';
+      }
+
+      // 隱藏所有團購與管理區塊
+      [
+        'openSection',
+        'closedSection',
+        'adminPanel',
+        'adminFormPanel'
+      ].forEach(function(id) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+
+      return;
+    }
+
+    currentGroupId = context.groupId;
+
     userBox.innerHTML = `
       <div class="login-chip">
         <span class="login-dot"></span>
@@ -463,9 +500,6 @@ async function initLiff() {
         你好，<strong>${escapeHtml(currentUser.displayName)}</strong>
       </div>
     `;
-
-    const copyBox = document.getElementById('copyUserIdBox');
-    if (copyBox) copyBox.classList.add('show');
 
     // LINE 身分辨識成功後，自動建立／更新 Users
     syncCurrentUser();
@@ -807,6 +841,11 @@ function renderAdminList() {
 
 
 function openCreateForm() {
+  if (!currentGroupId) {
+    alert('請從 LINE 群組內開啟團購系統');
+    return;
+  }
+
   clearAdminForm();
 
   adminImageData = '';
@@ -997,6 +1036,7 @@ async function saveAdminForm() {
     imageUrl: adminImageOriginalUrl || document.getElementById('adminImageUrl').value.trim(),
     imageData: adminImageData,
     ownerLineName: currentUser ? currentUser.displayName : '',
+    groupId: currentGroupId,
     startAt: document.getElementById('adminStartAt').value,
     endAt: document.getElementById('adminEndAt').value,
     status: document.getElementById('adminStatus').value
@@ -1189,46 +1229,7 @@ window.addEventListener('message', function(event) {
 
 
 
-function copyMyUserId() {
-  if (!currentUser || !currentUser.userId) {
-    alert('尚未取得 LINE User ID');
-    return;
-  }
 
-  const userId = currentUser.userId;
-
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(userId)
-      .then(function() {
-        alert('已複製 LINE User ID：\n' + userId);
-      })
-      .catch(function() {
-        fallbackCopyUserId(userId);
-      });
-  } else {
-    fallbackCopyUserId(userId);
-  }
-}
-
-function fallbackCopyUserId(userId) {
-  const textarea = document.createElement('textarea');
-  textarea.value = userId;
-  textarea.style.position = 'fixed';
-  textarea.style.left = '-9999px';
-
-  document.body.appendChild(textarea);
-  textarea.focus();
-  textarea.select();
-
-  try {
-    document.execCommand('copy');
-    alert('已複製 LINE User ID：\n' + userId);
-  } catch (error) {
-    prompt('請手動複製你的 LINE User ID：', userId);
-  }
-
-  textarea.remove();
-}
 
 
 function syncCurrentUser() {
