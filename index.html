@@ -579,6 +579,10 @@ function renderCarousel(items, carouselId, dotsId, loadingId, openMode) {
 
         <div class="product-name">${escapeHtml(item.name)}</div>
 
+        ${item.ownerLineName
+          ? `<div class="muted" style="margin-top:6px;">開團主：${escapeHtml(item.ownerLineName)}</div>`
+          : ''}
+
         ${item.description
           ? `<div class="description">${escapeHtml(item.description)}</div>`
           : ''}
@@ -746,6 +750,19 @@ function loadAdminList() {
 }
 
 
+
+function isMyGroupBuy(item) {
+  return !!(
+    currentUser
+    &&
+    item
+    &&
+    String(item.ownerUserId || '').trim()
+      ===
+    String(currentUser.userId || '').trim()
+  );
+}
+
 function renderAdminList() {
   const box = document.getElementById('adminList');
 
@@ -858,7 +875,7 @@ function clearAdminForm() {
     'adminEndAt'
   ].forEach(id => document.getElementById(id).value = '');
 
-  document.getElementById('adminStatus').value = 'DRAFT';
+  document.getElementById('adminStatus').value = 'PENDING';
 
   const fileInput = document.getElementById('adminImageFile');
   if (fileInput) fileInput.value = '';
@@ -976,6 +993,7 @@ async function saveAdminForm() {
     unit: document.getElementById('adminUnit').value.trim(),
     imageUrl: adminImageOriginalUrl || document.getElementById('adminImageUrl').value.trim(),
     imageData: adminImageData,
+    ownerLineName: currentUser ? currentUser.displayName : '',
     startAt: document.getElementById('adminStartAt').value,
     endAt: document.getElementById('adminEndAt').value,
     status: document.getElementById('adminStatus').value
