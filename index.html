@@ -288,7 +288,11 @@
   <div id="homePanel">
 
     <div id="adminEntry" style="display:none;" class="section">
-      <button class="admin-button" onclick="openAdminPanel()">⚙️ 管理專區</button>
+      <div class="section-title">開團功能</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <button onclick="openCreateForm()">＋ 我要開團</button>
+        <button class="outline" onclick="openAdminPanel()">我的開團</button>
+      </div>
     </div>
 
     <div class="section">
@@ -337,7 +341,7 @@
 
 
   <div id="adminPanel" style="display:none;">
-    <div class="section-title">⚙️ 管理專區</div>
+    <div class="section-title">我的開團管理</div>
 
     <div class="card">
       <button onclick="openCreateForm()">＋ 新增團購</button>
@@ -599,16 +603,28 @@ function showGroupAccessError(
 
 
 function checkAdminStatus() {
+  // 有有效群組工作階段的使用者，都可以建立與管理自己的團。
+  const entry = document.getElementById('adminEntry');
+  if (entry) entry.style.display = 'block';
+
+  // isAdmin 保留給後續 Super Admin 審核功能使用。
   window.handleAdminStatus = function(result) {
-    isAdmin = !!(result && result.success && result.isAdmin);
-    document.getElementById('adminEntry').style.display = isAdmin ? 'block' : 'none';
+    isAdmin = !!(
+      result
+      &&
+      result.success
+      &&
+      result.isAdmin
+    );
   };
 
   jsonp(
     'adminStatus',
     'handleAdminStatus',
     { userId: currentUser.userId },
-    function() {}
+    function() {
+      isAdmin = false;
+    }
   );
 }
 
@@ -822,8 +838,8 @@ function closeOrder() {
 ========================= */
 
 function openAdminPanel() {
-  if (!isAdmin) {
-    alert('你沒有管理者權限');
+  if (!currentGroupSessionToken) {
+    alert('請從 LINE 群組的專屬團購入口開啟');
     return;
   }
 
@@ -853,12 +869,12 @@ function loadAdminList() {
       return;
     }
 
-    window.adminGroupBuys = result.data || [];
+    window.adminGroupBuys = (result.data || []).filter(isMyGroupBuy);
     renderAdminList();
   };
 
   jsonp(
-    'allGroupBuysForAdmin',
+    'myGroupBuys',
     'handleAdminGroupBuys',
     { sessionToken: currentGroupSessionToken },
     function() {
@@ -885,33 +901,93 @@ function renderAdminList() {
   const box = document.getElementById('adminList');
 
   if (!window.adminGroupBuys.length) {
-    box.innerHTML = '目前沒有團購資料';
+    box.className = 'message';
+    box.innerHTML = `
+      <strong>目前你沒有開團</strong>
+      <div class="muted" style="margin-top:6px;">
+        可以點「我要開團」建立第一個團購。
+      </div>
+    `;
     return;
   }
+
+  const statusLabel = {
+    DRAFT: '草稿',
+    PENDING: '待審核',
+    OPEN: '開團中',
+    CLOSED: '已結團',
+    SUSPENDED: '已停權',
+    CANCELLED: '已取消'
+  };
 
   box.className = 'card';
   box.innerHTML = '';
 
   window.adminGroupBuys.forEach(item => {
-    const status = String(item.status || '').toUpperCase();
+    const status =
+      String(item.status || '')
+        .trim()
+        .toUpperCase();
 
-    const div = document.createElement('div');
+    const div =
+      document.createElement('div');
+
     div.className = 'admin-row';
 
+    const canEdit =
+      status === 'PENDING'
+      ||
+      status === 'DRAFT'
+      ||
+      status === 'OPEN';
+
+    const canClose =
+      status === 'OPEN';
+
+    const statusText =
+      statusLabel[status]
+      ||
+      status;
+
     div.innerHTML = `
-      <div class="product-name">${escapeHtml(item.name)}</div>
-      <div class="info">狀態：<strong>${escapeHtml(status)}</strong></div>
-      <div class="info">單價：$${formatNumber(item.price)} / ${escapeHtml(item.unit)}</div>
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
+        <div class="product-name">${escapeHtml(item.name)}</div>
+        <span class="status ${
+          status === 'OPEN'
+            ? 'status-open'
+            : status === 'CLOSED'
+              ? 'status-closed'
+              : ''
+        }">${escapeHtml(statusText)}</span>
+      </div>
+
+      <div class="info">
+        單價：$${formatNumber(item.price)} / ${escapeHtml(item.unit)}
+      </div>
+
+      ${
+        status === 'PENDING'
+          ? `<div class="muted" style="margin-top:6px;">等待 Super Admin 審核，審核前仍可修改資料。</div>`
+          : ''
+      }
+
+      ${
+        status === 'SUSPENDED'
+          ? `<div class="error" style="margin-top:6px;">此團已由管理員停權。</div>`
+          : ''
+      }
 
       <div class="admin-actions">
-        <button class="outline" onclick="openEditForm('${escapeJs(item.buyId)}')">
-          修改
-        </button>
+        ${
+          canEdit
+            ? `<button class="outline" onclick="openEditForm('${escapeJs(item.buyId)}')">修改</button>`
+            : ''
+        }
 
         ${
-          status === 'OPEN'
-          ? `<button class="danger" onclick="changeGroupBuyStatus('adminCloseGroupBuy','${escapeJs(item.buyId)}','確定要關閉這一團嗎？')">關團</button>`
-          : `<button onclick="changeGroupBuyStatus('adminOpenGroupBuy','${escapeJs(item.buyId)}','確定要開啟這一團嗎？')">開團</button>`
+          canClose
+            ? `<button class="danger" onclick="changeGroupBuyStatus('adminCloseGroupBuy','${escapeJs(item.buyId)}','確定要關閉這一團嗎？')">關團</button>`
+            : ''
         }
       </div>
     `;
@@ -919,7 +995,6 @@ function renderAdminList() {
     box.appendChild(div);
   });
 }
-
 
 function openCreateForm() {
   if (!currentGroupSessionToken) {
