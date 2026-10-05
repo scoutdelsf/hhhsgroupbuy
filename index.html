@@ -431,6 +431,89 @@
       margin: 0;
     }
 
+
+    /* ===== 跟團名單 Modal ===== */
+    #participantsPanel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 7850;
+      padding: 18px 12px;
+      background: rgba(25, 48, 34, .42);
+      backdrop-filter: blur(3px);
+      overflow-y: auto;
+    }
+
+    #participantsPanel.show {
+      display: flex !important;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    .participants-modal {
+      width: min(520px, 100%);
+      margin: 50px auto;
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 18px 54px rgba(24, 68, 39, .22);
+      overflow: hidden;
+    }
+
+    .participants-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px;
+      background: #f5fbf7;
+      border-bottom: 1px solid var(--gb-line);
+    }
+
+    .participants-summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .participants-summary-box {
+      padding: 12px;
+      border-radius: 14px;
+      background: #f3faf5;
+      text-align: center;
+    }
+
+    .participants-summary-number {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--gb-green-dark);
+    }
+
+    .participants-list {
+      border-top: 1px solid var(--gb-line);
+    }
+
+    .participant-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 2px;
+      border-bottom: 1px solid #edf3ef;
+    }
+
+    .participant-name {
+      min-width: 0;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .participant-qty {
+      flex: 0 0 auto;
+      font-weight: 800;
+      color: var(--gb-green-dark);
+    }
+
 </style>
 </head>
 
@@ -438,7 +521,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.9.1</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.9.2</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -602,6 +685,38 @@
 
 </div>
 
+
+
+<div id="participantsPanel" onclick="handleParticipantsBackdrop(event)">
+  <div class="participants-modal" role="dialog" aria-modal="true" aria-labelledby="participantsTitle">
+    <div class="participants-modal-header">
+      <div>
+        <div class="section-kicker">跟團名單</div>
+        <div id="participantsTitle" class="product-name" style="margin:0;">團購品項</div>
+      </div>
+      <button type="button" class="modal-close-button" onclick="closeParticipants()">×</button>
+    </div>
+
+    <div style="padding:18px;">
+      <div class="participants-summary">
+        <div class="participants-summary-box">
+          <div id="participantsPeopleCount" class="participants-summary-number">0</div>
+          <div class="muted">跟團人數</div>
+        </div>
+        <div class="participants-summary-box">
+          <div id="participantsTotalQuantity" class="participants-summary-number">0</div>
+          <div class="muted">總數量</div>
+        </div>
+      </div>
+
+      <div id="participantsLoading" class="message">
+        正在讀取跟團名單...
+      </div>
+
+      <div id="participantsList" class="participants-list"></div>
+    </div>
+  </div>
+</div>
 
 <div id="savingOverlay" class="saving-overlay" aria-live="polite">
   <div class="saving-box">
@@ -1002,16 +1117,166 @@ function openParticipants(buyId) {
     return;
   }
 
-  alert(
-    '「有誰跟團」名單功能會接在下一步。\n\n'
-    + item.name
-    + '\n目前：'
-    + Number(item.peopleCount || 0)
-    + ' 人，共 '
-    + Number(item.totalQuantity || 0)
-    + ' '
-    + (item.unit || '')
+  const panel =
+    document.getElementById(
+      'participantsPanel'
+    );
+
+  const title =
+    document.getElementById(
+      'participantsTitle'
+    );
+
+  const loading =
+    document.getElementById(
+      'participantsLoading'
+    );
+
+  const list =
+    document.getElementById(
+      'participantsList'
+    );
+
+  const peopleCount =
+    document.getElementById(
+      'participantsPeopleCount'
+    );
+
+  const totalQuantity =
+    document.getElementById(
+      'participantsTotalQuantity'
+    );
+
+  title.textContent =
+    item.name || '團購品項';
+
+  peopleCount.textContent = '0';
+  totalQuantity.textContent = '0';
+
+  loading.style.display = 'block';
+  loading.textContent =
+    '正在讀取跟團名單...';
+
+  list.innerHTML = '';
+
+  panel.classList.add('show');
+  document.body.classList.add('modal-open');
+
+  window.handleOrderParticipants =
+    function(result) {
+      if (
+        !result
+        ||
+        !result.success
+      ) {
+        loading.innerHTML =
+          '<span class="error">'
+          +
+          escapeHtml(
+            result && result.message
+              ? result.message
+              : '無法讀取跟團名單'
+          )
+          +
+          '</span>';
+        return;
+      }
+
+      peopleCount.textContent =
+        String(
+          Number(
+            result.peopleCount || 0
+          )
+        );
+
+      totalQuantity.textContent =
+        String(
+          Number(
+            result.totalQuantity || 0
+          )
+        );
+
+      const rows =
+        Array.isArray(
+          result.participants
+        )
+          ? result.participants
+          : [];
+
+      if (!rows.length) {
+        loading.style.display = 'block';
+        loading.textContent =
+          '目前還沒有人跟團。';
+        list.innerHTML = '';
+        return;
+      }
+
+      loading.style.display = 'none';
+
+      list.innerHTML =
+        rows
+          .map(row => `
+            <div class="participant-row">
+              <div class="participant-name">
+                ${escapeHtml(row.lineName || 'LINE 使用者')}
+              </div>
+              <div class="participant-qty">
+                ${Number(row.quantity || 0)} ${escapeHtml(item.unit || '')}
+              </div>
+            </div>
+          `)
+          .join('');
+    };
+
+  jsonp(
+    'orderParticipants',
+    'handleOrderParticipants',
+    {
+      sessionToken:
+        currentGroupSessionToken,
+      buyId:
+        buyId
+    },
+    function(message) {
+      loading.innerHTML =
+        '<span class="error">'
+        +
+        escapeHtml(
+          message || '讀取跟團名單失敗'
+        )
+        +
+        '</span>';
+    }
   );
+}
+
+
+function closeParticipants() {
+  const panel =
+    document.getElementById(
+      'participantsPanel'
+    );
+
+  if (panel) {
+    panel.classList.remove('show');
+  }
+
+  document.body.classList.remove('modal-open');
+}
+
+
+function handleParticipantsBackdrop(event) {
+  if (
+    event
+    &&
+    event.target
+    &&
+    event.target.id
+      ===
+      'participantsPanel'
+  ) {
+    closeParticipants();
+  }
 }
 
 
