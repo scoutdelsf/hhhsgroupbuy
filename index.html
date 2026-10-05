@@ -278,10 +278,10 @@
 
   <div id="userBox" class="user-box">正在確認 LINE 身分...</div>
 
-  <div id="groupAccessMessage" class="message" style="display:none; margin-top:12px;">
-    <strong>請從 LINE 群組內開啟團購系統</strong>
-    <div class="muted" style="margin-top:6px;">
-      此團購系統依 LINE 群組區分資料。請回到要使用的 LINE 群組，再從群組內開啟本系統。
+  <div id="groupAccessMessage" class="message" style="display:none;">
+    <strong id="groupAccessTitle">請從 LINE 群組的團購入口開啟</strong>
+    <div id="groupAccessText" class="muted" style="margin-top:6px;">
+      回到 LINE 群組輸入「團購」，再點 Bot 回傳的專屬入口。
     </div>
   </div>
 
@@ -427,7 +427,9 @@ const API_URL =
 const LOAD_TIMEOUT_MS = 8000;
 
 let currentUser = null;
-let currentGroupId = '';
+let currentGroupKey = '';
+let currentGroupSessionToken = '';
+let currentGroupName = '';
 let currentBuy = null;
 let isAdmin = false;
 
@@ -445,51 +447,22 @@ window.onload = function () {
 
 
 async function initLiff() {
-  const userBox = document.getElementById('userBox');
+  const userBox =
+    document.getElementById('userBox');
 
   try {
-    await liff.init({ liffId: LIFF_ID });
+    await liff.init({
+      liffId: LIFF_ID
+    });
 
     if (!liff.isLoggedIn()) {
-      userBox.innerHTML = '目前尚未登入 LINE';
+      userBox.innerHTML =
+        '目前尚未登入 LINE';
       return;
     }
 
-    currentUser = await liff.getProfile();
-
-    const context = liff.getContext();
-
-    if (
-      !context
-      ||
-      context.type !== 'group'
-      ||
-      !context.groupId
-    ) {
-      currentGroupId = '';
-
-      const groupMessage =
-        document.getElementById('groupAccessMessage');
-
-      if (groupMessage) {
-        groupMessage.style.display = 'block';
-      }
-
-      // 隱藏所有團購與管理區塊
-      [
-        'openSection',
-        'closedSection',
-        'adminPanel',
-        'adminFormPanel'
-      ].forEach(function(id) {
-        const el = document.getElementById(id);
-        if (el) el.style.display = 'none';
-      });
-
-      return;
-    }
-
-    currentGroupId = context.groupId;
+    currentUser =
+      await liff.getProfile();
 
     userBox.innerHTML = `
       <div class="login-chip">
@@ -501,19 +474,127 @@ async function initLiff() {
       </div>
     `;
 
-    // LINE 身分辨識成功後，自動建立／更新 Users
+    // 先同步 Users
     syncCurrentUser();
+
+    // 官方規格：LIFF URL 的自訂參數要等 liff.init() 完成後再讀
+    const urlParams =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    currentGroupKey =
+      String(
+        urlParams.get('g') || ''
+      ).trim();
+
+    if (!currentGroupKey) {
+      showGroupAccessError(
+        '請從 LINE 群組的團購入口開啟',
+        '回到 LINE 群組輸入「團購」，再點 Bot 回傳的專屬入口。'
+      );
+      return;
+    }
+
+    const groupResult =
+      await adminPost(
+        'resolveGroupContext',
+        {
+          groupKey:
+            currentGroupKey
+        }
+      );
+
+    if (
+      !groupResult
+      ||
+      !groupResult.success
+    ) {
+      showGroupAccessError(
+        '無法進入此群組團購',
+        groupResult
+        && groupResult.message
+          ? groupResult.message
+          : '請回 LINE 群組重新取得入口。'
+      );
+      return;
+    }
+
+    currentGroupSessionToken =
+      groupResult.sessionToken;
+
+    currentGroupName =
+      groupResult.groupName || '';
+
+    userBox.innerHTML += `
+      <div style="margin-top:8px;" class="muted">
+        群組：<strong>${escapeHtml(currentGroupName || 'LINE 群組')}</strong>
+      </div>
+    `;
 
     checkAdminStatus();
     loadOpenGroupBuys();
     loadClosedGroupBuys();
 
   } catch (error) {
-    userBox.innerHTML = `
-      <span class="error">LINE 身分確認失敗</span><br>
-      ${escapeHtml(error.message || String(error))}
-    `;
+    showGroupAccessError(
+      'LINE 身分或群組確認失敗',
+      error.message || String(error)
+    );
   }
+}
+
+
+function showGroupAccessError(
+  title,
+  text
+) {
+  const box =
+    document.getElementById(
+      'groupAccessMessage'
+    );
+
+  const titleBox =
+    document.getElementById(
+      'groupAccessTitle'
+    );
+
+  const textBox =
+    document.getElementById(
+      'groupAccessText'
+    );
+
+  if (titleBox) {
+    titleBox.textContent = title;
+  }
+
+  if (textBox) {
+    textBox.textContent = text;
+  }
+
+  if (box) {
+    box.style.display = 'block';
+  }
+
+  // 沒有有效群組 session，不載入任何團購資料
+  const home =
+    document.getElementById(
+      'homePanel'
+    );
+
+  const admin =
+    document.getElementById(
+      'adminPanel'
+    );
+
+  const form =
+    document.getElementById(
+      'adminFormPanel'
+    );
+
+  if (home) home.style.display = 'none';
+  if (admin) admin.style.display = 'none';
+  if (form) form.style.display = 'none';
 }
 
 
@@ -546,7 +627,7 @@ function loadOpenGroupBuys() {
   jsonp(
     'openGroupBuys',
     'handleOpenGroupBuys',
-    {},
+    { sessionToken: currentGroupSessionToken },
     function() {
       showRetry('openLoading', '無法連線至團購資料庫', 'loadOpenGroupBuys()');
     }
@@ -567,7 +648,7 @@ function loadClosedGroupBuys() {
   jsonp(
     'recentClosedGroupBuys',
     'handleClosedGroupBuys',
-    {},
+    { sessionToken: currentGroupSessionToken },
     function() {
       showRetry('closedLoading', '無法讀取歷史資料', 'loadClosedGroupBuys()');
     }
@@ -779,7 +860,7 @@ function loadAdminList() {
   jsonp(
     'allGroupBuysForAdmin',
     'handleAdminGroupBuys',
-    {},
+    { sessionToken: currentGroupSessionToken },
     function() {
       box.innerHTML = '<span class="error">無法讀取管理資料</span>';
     }
@@ -841,8 +922,8 @@ function renderAdminList() {
 
 
 function openCreateForm() {
-  if (!currentGroupId) {
-    alert('請從 LINE 群組內開啟團購系統');
+  if (!currentGroupSessionToken) {
+    alert('請從 LINE 群組的專屬團購入口開啟');
     return;
   }
 
@@ -1036,7 +1117,6 @@ async function saveAdminForm() {
     imageUrl: adminImageOriginalUrl || document.getElementById('adminImageUrl').value.trim(),
     imageData: adminImageData,
     ownerLineName: currentUser ? currentUser.displayName : '',
-    groupId: currentGroupId,
     startAt: document.getElementById('adminStartAt').value,
     endAt: document.getElementById('adminEndAt').value,
     status: document.getElementById('adminStatus').value
@@ -1190,6 +1270,7 @@ function adminPost(action, payload) {
       idToken: idToken,
       requestId: requestId,
       parentOrigin: location.origin,
+      groupSessionToken: currentGroupSessionToken,
       payload: JSON.stringify(payload || {})
     };
 
