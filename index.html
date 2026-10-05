@@ -966,11 +966,6 @@ function resetAdminImagePreview() {
 
 
 async function saveAdminForm() {
-  setAdminBusy(
-    true,
-    '儲存中…',
-    '正在處理團購資料，請勿重複操作。'
-  );
   const buyId = document.getElementById('adminBuyId').value.trim();
 
   const payload = {
@@ -986,6 +981,7 @@ async function saveAdminForm() {
     status: document.getElementById('adminStatus').value
   };
 
+  // 驗證先做，避免欄位漏填時畫面被鎖住
   if (!payload.name) {
     alert('請輸入商品名稱');
     return;
@@ -996,10 +992,21 @@ async function saveAdminForm() {
     return;
   }
 
-  const action = buyId ? 'adminUpdateGroupBuy' : 'adminCreateGroupBuy';
+  const action = buyId
+    ? 'adminUpdateGroupBuy'
+    : 'adminCreateGroupBuy';
+
+  setAdminBusy(
+    true,
+    buyId ? '儲存中…' : '建立團購中…',
+    '正在寫入 Google Sheet／Google Drive，請勿重複操作。'
+  );
 
   try {
     const result = await adminPost(action, payload);
+
+    // 先解除遮罩，再讓使用者看到結果提示
+    setAdminBusy(false);
 
     if (!result.success) {
       alert(result.message || '儲存失敗');
@@ -1014,10 +1021,11 @@ async function saveAdminForm() {
     loadAdminList();
 
   } catch (error) {
+    // 無論錯誤發生在哪裡，都一定先退掉遮罩
+    setAdminBusy(false);
     alert(error.message || String(error));
   }
 }
-
 
 async function changeGroupBuyStatus(action, buyId, message) {
   if (!confirm(message)) return;
