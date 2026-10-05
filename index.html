@@ -104,6 +104,28 @@
       font-size:22px;
       text-align:center;
     }
+    .product-image {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      background: #eee;
+    }
+    .image-preview-box {
+      margin-top: 10px;
+      display: none;
+    }
+    .image-preview-box img {
+      width: 100%;
+      max-height: 320px;
+      object-fit: contain;
+      border-radius: 12px;
+      background: #f4f4f4;
+    }
+    .file-input {
+      background: #fff;
+    }
     iframe#gasPostFrame {
       width:0; height:0; border:0; position:absolute; left:-9999px;
     }
@@ -118,14 +140,7 @@
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
-  <div id="userBox" class="user-box">
-    正在確認 LINE 身分...
-  </div>
-
-  <div id="copyUserIdBox" class="user-box" style="display:none;">
-    <div class="muted" style="margin-bottom:8px;">管理者設定用</div>
-    <button class="outline" onclick="copyMyUserId()">複製我的 LINE User ID</button>
-  </div>
+  <div id="userBox" class="user-box">正在確認 LINE 身分...</div>
 
   <div id="homePanel">
 
@@ -208,8 +223,25 @@
       <label>單位</label>
       <input id="adminUnit" type="text" placeholder="例如：盒、顆、條">
 
-      <label>圖片網址</label>
-      <input id="adminImageUrl" type="url" placeholder="https://...">
+      <label>商品圖片</label>
+      <input
+        id="adminImageFile"
+        class="file-input"
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        onchange="previewAdminImage(this)"
+      >
+
+      <div id="adminImagePreviewBox" class="image-preview-box">
+        <img id="adminImagePreview" alt="商品圖片預覽">
+      </div>
+
+      <input id="adminImageUrl" type="hidden">
+
+      <div class="muted" style="margin-top:8px;">
+        選擇圖片後會先在此頁預覽；儲存時自動上傳到 Google Drive。
+        修改團購時若不重新選照片，會保留原圖片。
+      </div>
 
       <label>開始時間</label>
       <input id="adminStartAt" type="datetime-local">
@@ -244,6 +276,9 @@ let currentUser = null;
 let currentBuy = null;
 let isAdmin = false;
 
+let adminImageData = '';
+let adminImageOriginalUrl = '';
+
 window.currentGroupBuys = [];
 window.adminGroupBuys = [];
 
@@ -271,8 +306,6 @@ async function initLiff() {
       你好，<strong>${escapeHtml(currentUser.displayName)}</strong><br>
       <span class="success">LINE 身分辨識成功</span>
     `;
-
-    document.getElementById('copyUserIdBox').style.display = 'block';
 
     checkAdminStatus();
     loadOpenGroupBuys();
@@ -379,6 +412,10 @@ function renderCarousel(items, carouselId, dotsId, loadingId, openMode) {
             ${openMode ? '開放中' : '已結束'}
           </span>
         </div>
+
+        ${item.imageUrl
+          ? `<img class="product-image" src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}">`
+          : ''}
 
         <div class="product-name">${escapeHtml(item.name)}</div>
 
@@ -592,6 +629,10 @@ function renderAdminList() {
 function openCreateForm() {
   clearAdminForm();
 
+  adminImageData = '';
+  adminImageOriginalUrl = '';
+  resetAdminImagePreview();
+
   document.getElementById('adminFormTitle').textContent = '新增團購';
   document.getElementById('adminStatus').style.display = 'block';
   document.getElementById('newStatusLabel').style.display = 'block';
@@ -617,6 +658,16 @@ function openEditForm(buyId) {
   document.getElementById('adminPrice').value = item.price || 0;
   document.getElementById('adminUnit').value = item.unit || '';
   document.getElementById('adminImageUrl').value = item.imageUrl || '';
+
+  adminImageData = '';
+  adminImageOriginalUrl = item.imageUrl || '';
+
+  if (item.imageUrl) {
+    showAdminImagePreview(item.imageUrl);
+  } else {
+    resetAdminImagePreview();
+  }
+
   document.getElementById('adminStartAt').value = toDatetimeLocal(item.startAt);
   document.getElementById('adminEndAt').value = toDatetimeLocal(item.endAt);
 
@@ -648,6 +699,109 @@ function clearAdminForm() {
   ].forEach(id => document.getElementById(id).value = '');
 
   document.getElementById('adminStatus').value = 'DRAFT';
+
+  const fileInput = document.getElementById('adminImageFile');
+  if (fileInput) fileInput.value = '';
+
+  adminImageData = '';
+  adminImageOriginalUrl = '';
+
+  resetAdminImagePreview();
+}
+
+
+
+function previewAdminImage(input) {
+  const file = input.files && input.files[0];
+
+  if (!file) {
+    adminImageData = '';
+    return;
+  }
+
+  if (!/^image\//i.test(file.type)) {
+    alert('請選擇圖片檔');
+    input.value = '';
+    return;
+  }
+
+  // 先限制原始檔 12MB，前端會再壓縮
+  if (file.size > 12 * 1024 * 1024) {
+    alert('圖片太大，請選擇 12MB 以下的圖片');
+    input.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+
+  reader.onload = function(event) {
+    const img = new Image();
+
+    img.onload = function() {
+      const maxSide = 1600;
+
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxSide || height > maxSide) {
+        const scale = Math.min(
+          maxSide / width,
+          maxSide / height
+        );
+
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // 統一轉 JPEG，兼顧畫質與傳輸大小
+      adminImageData = canvas.toDataURL(
+        'image/jpeg',
+        0.86
+      );
+
+      showAdminImagePreview(adminImageData);
+    };
+
+    img.onerror = function() {
+      alert('無法讀取這張圖片');
+      input.value = '';
+    };
+
+    img.src = event.target.result;
+  };
+
+  reader.readAsDataURL(file);
+}
+
+
+function showAdminImagePreview(src) {
+  const box =
+    document.getElementById('adminImagePreviewBox');
+
+  const img =
+    document.getElementById('adminImagePreview');
+
+  img.src = src;
+  box.style.display = 'block';
+}
+
+
+function resetAdminImagePreview() {
+  const box =
+    document.getElementById('adminImagePreviewBox');
+
+  const img =
+    document.getElementById('adminImagePreview');
+
+  if (img) img.removeAttribute('src');
+  if (box) box.style.display = 'none';
 }
 
 
@@ -660,7 +814,8 @@ async function saveAdminForm() {
     description: document.getElementById('adminDescription').value.trim(),
     price: Number(document.getElementById('adminPrice').value || 0),
     unit: document.getElementById('adminUnit').value.trim(),
-    imageUrl: document.getElementById('adminImageUrl').value.trim(),
+    imageUrl: adminImageOriginalUrl || document.getElementById('adminImageUrl').value.trim(),
+    imageData: adminImageData,
     startAt: document.getElementById('adminStartAt').value,
     endAt: document.getElementById('adminEndAt').value,
     status: document.getElementById('adminStatus').value
@@ -793,50 +948,6 @@ window.addEventListener('message', function(event) {
 
   pending.resolve(event.data.result);
 });
-
-
-
-function copyMyUserId() {
-  if (!currentUser || !currentUser.userId) {
-    alert('尚未取得 LINE User ID');
-    return;
-  }
-
-  const userId = currentUser.userId;
-
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(userId)
-      .then(function() {
-        alert('已複製 LINE User ID：\n' + userId);
-      })
-      .catch(function() {
-        fallbackCopyUserId(userId);
-      });
-  } else {
-    fallbackCopyUserId(userId);
-  }
-}
-
-
-function fallbackCopyUserId(userId) {
-  const textarea = document.createElement('textarea');
-  textarea.value = userId;
-  textarea.style.position = 'fixed';
-  textarea.style.left = '-9999px';
-
-  document.body.appendChild(textarea);
-  textarea.focus();
-  textarea.select();
-
-  try {
-    document.execCommand('copy');
-    alert('已複製 LINE User ID：\n' + userId);
-  } catch (error) {
-    prompt('請手動複製你的 LINE User ID：', userId);
-  }
-
-  textarea.remove();
-}
 
 
 /* =========================
