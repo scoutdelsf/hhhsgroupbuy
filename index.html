@@ -129,7 +129,143 @@
     iframe#gasPostFrame {
       width:0; height:0; border:0; position:absolute; left:-9999px;
     }
-  </style>
+  
+    /* ===== 正式版 UI 微調 ===== */
+    :root {
+      --gb-green: #06c755;
+      --gb-green-dark: #049b43;
+      --gb-green-soft: #eef9f2;
+      --gb-green-soft-2: #f7fcf8;
+      --gb-line: #d7e9dd;
+      --gb-text: #24342b;
+      --gb-muted: #6f7f75;
+    }
+
+    body {
+      background: #f2faf4;
+      color: var(--gb-text);
+    }
+
+    .container {
+      max-width: 680px;
+    }
+
+    .header {
+      padding: 4px 2px 12px;
+      border-bottom: 1px solid var(--gb-line);
+      margin-bottom: 14px;
+    }
+
+    .user-box {
+      background: var(--gb-green-soft);
+      border: 1px solid #cfe8d7;
+      box-shadow: none;
+    }
+
+    .login-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: #fff;
+      color: var(--gb-green-dark);
+      font-size: 13px;
+      font-weight: 700;
+      border: 1px solid #cfe8d7;
+    }
+
+    .login-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--gb-green);
+    }
+
+    .section-title {
+      margin-top: 22px;
+      margin-bottom: 12px;
+      padding: 0 2px 10px;
+      border-bottom: 1px solid var(--gb-line);
+      color: var(--gb-text);
+      font-weight: 800;
+    }
+
+    .card,
+    .message {
+      border: 1px solid #e1eee5;
+      box-shadow: 0 4px 16px rgba(41, 96, 59, .05);
+    }
+
+    #adminPanel,
+    #adminFormPanel {
+      margin-top: 22px;
+      padding-top: 2px;
+    }
+
+    #adminPanel .section-title,
+    #adminFormPanel .section-title {
+      color: var(--gb-green-dark);
+    }
+
+    .copy-id-row {
+      display: none;
+      margin-top: 10px;
+    }
+
+    .copy-id-row.show {
+      display: block;
+    }
+
+    .saving-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(239, 249, 242, .91);
+      backdrop-filter: blur(3px);
+    }
+
+    .saving-overlay.show {
+      display: flex;
+    }
+
+    .saving-box {
+      width: min(360px, 90vw);
+      padding: 24px;
+      text-align: center;
+      background: #fff;
+      border: 1px solid var(--gb-line);
+      border-radius: 18px;
+      box-shadow: 0 12px 38px rgba(31, 92, 49, .15);
+    }
+
+    .saving-spinner {
+      width: 42px;
+      height: 42px;
+      margin: 0 auto 14px;
+      border: 4px solid #dceee2;
+      border-top-color: var(--gb-green);
+      border-radius: 50%;
+      animation: gbSpin .9s linear infinite;
+    }
+
+    @keyframes gbSpin {
+      to { transform: rotate(360deg); }
+    }
+
+    button:disabled,
+    input:disabled,
+    textarea:disabled,
+    select:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+</style>
 </head>
 
 <body>
@@ -141,6 +277,11 @@
   </div>
 
   <div id="userBox" class="user-box">正在確認 LINE 身分...</div>
+  <div id="copyUserIdBox" class="copy-id-row">
+    <button type="button" class="outline" onclick="copyMyUserId()">
+      複製我的 LINE User ID
+    </button>
+  </div>
 
   <div id="homePanel">
 
@@ -262,6 +403,17 @@
 
 </div>
 
+
+<div id="savingOverlay" class="saving-overlay" aria-live="polite">
+  <div class="saving-box">
+    <div class="saving-spinner"></div>
+    <div id="savingTitle" style="font-size:20px;font-weight:800;">儲存中…</div>
+    <div id="savingMessage" class="muted" style="margin-top:8px;">
+      正在寫入資料，請勿重複操作。
+    </div>
+  </div>
+</div>
+
 <iframe id="gasPostFrame" name="gasPostFrame"></iframe>
 
 <script>
@@ -303,9 +455,17 @@ async function initLiff() {
     currentUser = await liff.getProfile();
 
     userBox.innerHTML = `
-      你好，<strong>${escapeHtml(currentUser.displayName)}</strong><br>
-      <span class="success">LINE 身分辨識成功</span>
+      <div class="login-chip">
+        <span class="login-dot"></span>
+        LINE 已登入
+      </div>
+      <div style="margin-top:8px;">
+        你好，<strong>${escapeHtml(currentUser.displayName)}</strong>
+      </div>
     `;
+
+    const copyBox = document.getElementById('copyUserIdBox');
+    if (copyBox) copyBox.classList.add('show');
 
     checkAdminStatus();
     loadOpenGroupBuys();
@@ -878,6 +1038,28 @@ async function changeGroupBuyStatus(action, buyId, message) {
    安全 POST：ID Token 放 POST body
 ========================= */
 
+
+function setAdminBusy(busy, title, message) {
+  const overlay = document.getElementById('savingOverlay');
+  const titleBox = document.getElementById('savingTitle');
+  const messageBox = document.getElementById('savingMessage');
+
+  if (title && titleBox) titleBox.textContent = title;
+  if (message && messageBox) messageBox.textContent = message;
+
+  if (overlay) {
+    overlay.classList.toggle('show', busy);
+  }
+
+  document
+    .querySelectorAll(
+      '#adminFormPanel input, #adminFormPanel textarea, #adminFormPanel select, #adminFormPanel button'
+    )
+    .forEach(function(el) {
+      el.disabled = busy;
+    });
+}
+
 function adminPost(action, payload) {
   return new Promise(function(resolve, reject) {
     const idToken = liff.getIDToken();
@@ -892,8 +1074,9 @@ function adminPost(action, payload) {
 
     const timeout = setTimeout(function() {
       delete pendingAdminRequests[requestId];
-      reject(new Error('管理操作逾時：GAS 已執行但前端可能未收到回覆，請再試一次'));
-    }, 30000);
+      setAdminBusy(false);
+      reject(new Error('管理操作逾時，請重新整理後確認資料是否已寫入'));
+    }, 45000);
 
     pendingAdminRequests[requestId] = {
       resolve: resolve,
@@ -949,6 +1132,48 @@ window.addEventListener('message', function(event) {
   pending.resolve(event.data.result);
 });
 
+
+
+function copyMyUserId() {
+  if (!currentUser || !currentUser.userId) {
+    alert('尚未取得 LINE User ID');
+    return;
+  }
+
+  const userId = currentUser.userId;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(userId)
+      .then(function() {
+        alert('已複製 LINE User ID：\n' + userId);
+      })
+      .catch(function() {
+        fallbackCopyUserId(userId);
+      });
+  } else {
+    fallbackCopyUserId(userId);
+  }
+}
+
+function fallbackCopyUserId(userId) {
+  const textarea = document.createElement('textarea');
+  textarea.value = userId;
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  try {
+    document.execCommand('copy');
+    alert('已複製 LINE User ID：\n' + userId);
+  } catch (error) {
+    prompt('請手動複製你的 LINE User ID：', userId);
+  }
+
+  textarea.remove();
+}
 
 /* =========================
    JSONP
