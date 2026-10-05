@@ -467,6 +467,9 @@ async function initLiff() {
     const copyBox = document.getElementById('copyUserIdBox');
     if (copyBox) copyBox.classList.add('show');
 
+    // LINE 身分辨識成功後，自動建立／更新 Users
+    syncCurrentUser();
+
     checkAdminStatus();
     loadOpenGroupBuys();
     loadClosedGroupBuys();
@@ -1225,6 +1228,74 @@ function fallbackCopyUserId(userId) {
   }
 
   textarea.remove();
+}
+
+
+function syncCurrentUser() {
+  if (!currentUser) return;
+
+  const idToken = liff.getIDToken();
+
+  if (!idToken) {
+    console.warn('Users 同步失敗：無法取得 LINE ID Token');
+    return;
+  }
+
+  const requestId =
+    'USER_'
+    +
+    Date.now()
+    +
+    '_'
+    +
+    Math.random()
+      .toString(36)
+      .slice(2);
+
+  const form =
+    document.createElement('form');
+
+  form.method = 'POST';
+  form.action = API_URL;
+  form.target = 'gasPostFrame';
+  form.style.display = 'none';
+
+  const payload = {
+    lineName:
+      currentUser.displayName || '',
+    displayName:
+      currentUser.displayName || ''
+  };
+
+  const fields = {
+    action: 'syncUser',
+    idToken: idToken,
+    requestId: requestId,
+    payload:
+      JSON.stringify(payload)
+  };
+
+  Object.keys(fields)
+    .forEach(function(name) {
+      const input =
+        document.createElement('input');
+
+      input.type = 'hidden';
+      input.name = name;
+      input.value = fields[name];
+
+      form.appendChild(input);
+    });
+
+  document.body.appendChild(form);
+
+  // Users 同步不顯示儲存遮罩，
+  // 避免使用者一進首頁就被阻擋。
+  form.submit();
+
+  setTimeout(function() {
+    form.remove();
+  }, 1500);
 }
 
 /* =========================
