@@ -428,6 +428,10 @@
     </div>
 
     <div id="adminList" class="message">正在載入管理資料...</div>
+    <div id="debugGroupBuysButton" style="display:none; margin-top:12px;">
+      <button class="outline" onclick="showGroupBuyDebug()">檢查群組團購資料</button>
+    </div>
+    <div id="debugGroupBuysBox" class="message" style="display:none; margin-top:10px;"></div>
   </div>
 
 
@@ -701,6 +705,16 @@ function checkAdminStatus() {
       &&
       result.isAdmin
     );
+
+    const debugButton =
+      document.getElementById(
+        'debugGroupBuysButton'
+      );
+
+    if (debugButton) {
+      debugButton.style.display =
+        isAdmin ? 'block' : 'none';
+    }
   };
 
   jsonp(
@@ -1415,6 +1429,92 @@ async function saveAdminForm() {
     setAdminBusy(false);
     alert(error.message || String(error));
   }
+}
+
+
+
+function showGroupBuyDebug() {
+  const box =
+    document.getElementById(
+      'debugGroupBuysBox'
+    );
+
+  if (!box) return;
+
+  box.style.display = 'block';
+  box.innerHTML = '正在檢查群組資料...';
+
+  window.handleGroupBuyDebug =
+    function(result) {
+      if (
+        !result
+        ||
+        !result.success
+      ) {
+        box.innerHTML =
+          '<span class="error">'
+          +
+          escapeHtml(
+            result && result.message
+              ? result.message
+              : '診斷失敗'
+          )
+          +
+          '</span>';
+        return;
+      }
+
+      const rows =
+        Array.isArray(result.rows)
+          ? result.rows
+          : [];
+
+      let html = `
+        <div><strong>目前群組 ID</strong></div>
+        <div style="word-break:break-all;margin:4px 0 10px;">
+          ${escapeHtml(result.currentGroupId || '')}
+        </div>
+        <div><strong>GroupBuys 共 ${rows.length} 筆</strong></div>
+      `;
+
+      if (!rows.length) {
+        html +=
+          '<div class="muted" style="margin-top:6px;">GroupBuys 沒有任何資料。</div>';
+      } else {
+        rows.forEach(function(row) {
+          html += `
+            <div style="border-top:1px solid #ddd;padding:9px 0;margin-top:8px;">
+              <div><strong>${escapeHtml(row.buyId)}｜${escapeHtml(row.name)}</strong></div>
+              <div>狀態：${escapeHtml(row.status)}</div>
+              <div style="word-break:break-all;">資料 groupId：${escapeHtml(row.groupId || '(空白)')}</div>
+              <div>${row.groupMatched ? '✅ 群組相符' : '❌ 群組不相符'}</div>
+              <div>${row.ownerMatched ? '✅ 開團者是目前帳號' : '— 開團者不是目前帳號'}</div>
+            </div>
+          `;
+        });
+      }
+
+      box.innerHTML = html;
+    };
+
+  jsonp(
+    'debugGroupBuys',
+    'handleGroupBuyDebug',
+    {
+      sessionToken:
+        currentGroupSessionToken
+    },
+    function(message) {
+      box.innerHTML =
+        '<span class="error">'
+        +
+        escapeHtml(
+          message || '診斷讀取失敗'
+        )
+        +
+        '</span>';
+    }
+  );
 }
 
 
