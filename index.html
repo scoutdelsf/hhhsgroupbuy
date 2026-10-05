@@ -396,7 +396,7 @@
         <option value="OPEN">直接開團</option>
       </select>
 
-      <button onclick="saveAdminForm()">儲存</button>
+      <button id="adminSaveButton" onclick="saveAdminForm()">儲存</button>
       <button class="secondary" onclick="closeAdminForm()">取消</button>
     </div>
   </div>
@@ -966,6 +966,11 @@ function resetAdminImagePreview() {
 
 
 async function saveAdminForm() {
+  setAdminBusy(
+    true,
+    '儲存中…',
+    '正在處理團購資料，請勿重複操作。'
+  );
   const buyId = document.getElementById('adminBuyId').value.trim();
 
   const payload = {
@@ -1043,6 +1048,7 @@ function setAdminBusy(busy, title, message) {
   const overlay = document.getElementById('savingOverlay');
   const titleBox = document.getElementById('savingTitle');
   const messageBox = document.getElementById('savingMessage');
+  const saveButton = document.getElementById('adminSaveButton');
 
   if (title && titleBox) titleBox.textContent = title;
   if (message && messageBox) messageBox.textContent = message;
@@ -1058,6 +1064,26 @@ function setAdminBusy(busy, title, message) {
     .forEach(function(el) {
       el.disabled = busy;
     });
+
+  document
+    .querySelectorAll('#adminPanel button')
+    .forEach(function(el) {
+      el.disabled = busy;
+    });
+
+  if (saveButton) {
+    if (busy) {
+      if (!saveButton.dataset.originalText) {
+        saveButton.dataset.originalText = saveButton.textContent;
+      }
+
+      saveButton.textContent = '儲存中…';
+      saveButton.setAttribute('aria-busy', 'true');
+    } else {
+      saveButton.textContent = saveButton.dataset.originalText || '儲存';
+      saveButton.removeAttribute('aria-busy');
+    }
+  }
 }
 
 function adminPost(action, payload) {
