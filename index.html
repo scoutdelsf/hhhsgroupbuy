@@ -1271,6 +1271,7 @@ function syncCurrentUser() {
     action: 'syncUser',
     idToken: idToken,
     requestId: requestId,
+    parentOrigin: window.location.origin,
     payload:
       JSON.stringify(payload)
   };
@@ -1288,6 +1289,30 @@ function syncCurrentUser() {
     });
 
   document.body.appendChild(form);
+
+  pendingAdminRequests[requestId] = {
+    timeout: setTimeout(function() {
+      delete pendingAdminRequests[requestId];
+      console.warn('Users 同步逾時');
+    }, 15000),
+
+    resolve: function(result) {
+      if (result && result.success) {
+        console.log('Users 同步成功', result);
+      } else {
+        console.warn(
+          'Users 同步失敗',
+          result && result.message
+            ? result.message
+            : result
+        );
+      }
+    },
+
+    reject: function(error) {
+      console.warn('Users 同步失敗', error);
+    }
+  };
 
   // Users 同步不顯示儲存遮罩，
   // 避免使用者一進首頁就被阻擋。
