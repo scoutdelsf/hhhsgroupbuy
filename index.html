@@ -556,6 +556,16 @@
       margin-top: 12px;
     }
 
+
+    .card-share-row {
+      margin-top: 8px;
+    }
+
+    .card-share-row button {
+      width: 100%;
+      margin: 0;
+    }
+
 </style>
 </head>
 
@@ -563,7 +573,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.2</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.4</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1069,11 +1079,25 @@ async function loadGuestSharedGroupBuy() {
 async function shareGroupBuyLink(
   buyId
 ) {
+  const item =
+    (
+      window.currentGroupBuys
+      ||
+      window.adminGroupBuys
+      ||
+      []
+    )
+      .find(row =>
+        String(row.buyId)
+        ===
+        String(buyId)
+      );
+
   try {
     setAdminBusy(
       true,
-      '產生分享連結中…',
-      '正在建立這一團的外部分享連結。'
+      '產生分享內容中…',
+      '正在建立你的專屬分享連結。'
     );
 
     const result =
@@ -1104,24 +1128,75 @@ async function shareGroupBuyLink(
     const shareUrl =
       result.shareUrl;
 
+    const name =
+      item && item.name
+        ? String(item.name)
+        : '好康團購';
+
+    const price =
+      item && item.price !== undefined
+        ? Number(item.price)
+        : '';
+
+    const unit =
+      item && item.unit
+        ? String(item.unit)
+        : '';
+
+    const priceText =
+      price !== ''
+        ? (
+            price
+            +
+            '元'
+            +
+            (
+              unit
+                ? '/' + unit
+                : ''
+            )
+          )
+        : '';
+
+    const shareText =
+      '分享好康團購【'
+      +
+      name
+      +
+      '】'
+      +
+      (
+        priceText
+          ? '，' + priceText
+          : ''
+      )
+      +
+      '，快來看看!!'
+      +
+      '\n\n'
+      +
+      shareUrl;
+
     if (
       navigator.clipboard
       &&
       window.isSecureContext
     ) {
       await navigator.clipboard.writeText(
-        shareUrl
+        shareText
       );
 
       alert(
-        '分享連結已複製。\\n\\n'
+        '分享文字已複製，可以直接貼到 LINE。'
         +
-        shareUrl
+        '\n\n'
+        +
+        shareText
       );
     } else {
       window.prompt(
-        '請複製這個單一團購分享連結：',
-        shareUrl
+        '請複製以下分享內容：',
+        shareText
       );
     }
 
@@ -1338,7 +1413,14 @@ function renderCarousel(items, carouselId, dotsId, loadingId, openMode) {
           ? `<div class="card-action-row">
           <button onclick="openOrder('${escapeJs(item.buyId)}')">我要團購</button>
           <button class="outline" onclick="openParticipants('${escapeJs(item.buyId)}')">有誰跟團</button>
-        </div>`
+        </div>
+        ${
+          !guestMode
+            ? `<div class="card-share-row">
+                <button class="outline" onclick="shareGroupBuyLink('${escapeJs(item.buyId)}')">分享這團</button>
+              </div>`
+            : ''
+        }`
           : ''}
       </div>
     `;
