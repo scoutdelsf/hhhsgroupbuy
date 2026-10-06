@@ -563,7 +563,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.0</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.1</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1018,6 +1018,11 @@ async function loadGuestSharedGroupBuy() {
       userBox.innerHTML += `
         <div style="margin-top:8px;" class="muted">
           外部分享模式｜只顯示這一團
+          ${
+            result.sharerName
+              ? '｜分享者：' + escapeHtml(result.sharerName)
+              : ''
+          }
         </div>
       `;
     }
@@ -1073,7 +1078,7 @@ async function shareGroupBuyLink(
 
     const result =
       await adminPost(
-        'adminGetOrCreateShareLink',
+        'createShareLink',
         {
           buyId:
             buyId
