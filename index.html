@@ -563,7 +563,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.9.5</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.0</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -586,15 +586,15 @@
       </div>
     </div>
 
-    <div class="section">
-      <div class="section-title">🛒 目前開放團購</div>
+    <div id="openGroupBuySection" class="section">
+      <div id="openGroupBuySectionTitle" class="section-title">🛒 目前開放團購</div>
       <div class="section-subtitle">左右滑動查看更多團購</div>
       <div id="openLoading" class="message">正在載入團購資料...</div>
       <div id="openCarousel" class="carousel" style="display:none;"></div>
       <div id="openDots" class="dots" style="display:none;"></div>
     </div>
 
-    <div class="section">
+    <div id="closedGroupBuySection" class="section">
       <div class="section-title">🕘 最近結束的團購</div>
       <div class="section-subtitle">顯示近三個月已關閉的項目</div>
       <div id="closedLoading" class="message">正在載入歷史資料...</div>
@@ -799,6 +799,8 @@ let currentUser = null;
 let currentGroupKey = '';
 let currentGroupSessionToken = '';
 let currentGroupName = '';
+let guestMode = false;
+let currentGuestToken = '';
 let currentBuy = null;
 let orderDataReady = false;
 let currentOrderType = 'SELF';
@@ -826,7 +828,25 @@ async function initLiff() {
       liffId: LIFF_ID
     });
 
+    const initialParams =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    const initialShareToken =
+      String(
+        initialParams.get('share') || ''
+      ).trim();
+
     if (!liff.isLoggedIn()) {
+      if (initialShareToken) {
+        liff.login({
+          redirectUri:
+            window.location.href
+        });
+        return;
+      }
+
       userBox.innerHTML =
         '目前尚未登入 LINE';
       return;
@@ -853,6 +873,20 @@ async function initLiff() {
       new URLSearchParams(
         window.location.search
       );
+
+
+    currentGuestToken =
+      String(
+        urlParams.get('share') || ''
+      ).trim();
+
+    if (currentGuestToken) {
+      guestMode = true;
+
+      await loadGuestSharedGroupBuy();
+
+      return;
+    }
 
     currentGroupKey =
       String(
@@ -911,6 +945,188 @@ async function initLiff() {
     showGroupAccessError(
       'LINE 身分或群組確認失敗',
       error.message || String(error)
+    );
+  }
+}
+
+
+
+async function loadGuestSharedGroupBuy() {
+  const userBox =
+    document.getElementById(
+      'userBox'
+    );
+
+  const adminEntry =
+    document.getElementById(
+      'adminEntry'
+    );
+
+  const closedSection =
+    document.getElementById(
+      'closedGroupBuySection'
+    );
+
+  const openTitle =
+    document.getElementById(
+      'openGroupBuySectionTitle'
+    );
+
+  if (adminEntry) {
+    adminEntry.style.display =
+      'none';
+  }
+
+  if (closedSection) {
+    closedSection.style.display =
+      'none';
+  }
+
+  if (openTitle) {
+    openTitle.textContent =
+      '🛒 分享團購';
+  }
+
+  try {
+    const result =
+      await adminPost(
+        'guestGetGroupBuy',
+        {
+          shareToken:
+            currentGuestToken
+        }
+      );
+
+    if (
+      !result
+      ||
+      !result.success
+      ||
+      !result.data
+    ) {
+      throw new Error(
+        result && result.message
+          ? result.message
+          : '無法讀取分享團購'
+      );
+    }
+
+    window.currentGroupBuys =
+      [result.data];
+
+    if (userBox) {
+      userBox.innerHTML += `
+        <div style="margin-top:8px;" class="muted">
+          外部分享模式｜只顯示這一團
+        </div>
+      `;
+    }
+
+    const proxyButton =
+      document.getElementById(
+        'orderTypeProxyButton'
+      );
+
+    const proxyWrap =
+      document.getElementById(
+        'proxyNameWrap'
+      );
+
+    if (proxyButton) {
+      proxyButton.style.display =
+        'none';
+    }
+
+    if (proxyWrap) {
+      proxyWrap.style.display =
+        'none';
+    }
+
+    renderCarousel(
+      window.currentGroupBuys,
+      'openCarousel',
+      'openDots',
+      'openLoading',
+      true
+    );
+
+  } catch (error) {
+    showGroupAccessError(
+      '無法開啟分享團購',
+      error.message
+      ||
+      String(error)
+    );
+  }
+}
+
+
+async function shareGroupBuyLink(
+  buyId
+) {
+  try {
+    setAdminBusy(
+      true,
+      '產生分享連結中…',
+      '正在建立這一團的外部分享連結。'
+    );
+
+    const result =
+      await adminPost(
+        'adminGetOrCreateShareLink',
+        {
+          buyId:
+            buyId
+        }
+      );
+
+    setAdminBusy(false);
+
+    if (
+      !result
+      ||
+      !result.success
+      ||
+      !result.shareUrl
+    ) {
+      throw new Error(
+        result && result.message
+          ? result.message
+          : '無法產生分享連結'
+      );
+    }
+
+    const shareUrl =
+      result.shareUrl;
+
+    if (
+      navigator.clipboard
+      &&
+      window.isSecureContext
+    ) {
+      await navigator.clipboard.writeText(
+        shareUrl
+      );
+
+      alert(
+        '分享連結已複製。\\n\\n'
+        +
+        shareUrl
+      );
+    } else {
+      window.prompt(
+        '請複製這個單一團購分享連結：',
+        shareUrl
+      );
+    }
+
+  } catch (error) {
+    setAdminBusy(false);
+
+    alert(
+      error.message
+      ||
+      String(error)
     );
   }
 }
@@ -1287,6 +1503,33 @@ function openParticipants(buyId) {
           .join('');
     };
 
+  if (guestMode) {
+    adminPost(
+      'guestOrderParticipants',
+      {
+        shareToken:
+          currentGuestToken
+      }
+    )
+      .then(
+        window.handleOrderParticipants
+      )
+      .catch(function(error) {
+        loading.innerHTML =
+          '<span class="error">'
+          +
+          escapeHtml(
+            error.message
+            ||
+            String(error)
+          )
+          +
+          '</span>';
+      });
+
+    return;
+  }
+
   jsonp(
     'orderParticipants',
     'handleOrderParticipants',
@@ -1361,6 +1604,12 @@ function refreshOrderTypeUI() {
 async function setOrderType(type) {
   if (!orderDataReady) return;
 
+  if (guestMode) {
+    currentOrderType = 'SELF';
+    refreshOrderTypeUI();
+    return;
+  }
+
   currentOrderType = String(type || 'SELF').toUpperCase();
   refreshOrderTypeUI();
 
@@ -1395,11 +1644,20 @@ async function loadSelectedOrderQuantity() {
 
   try {
     const result = await adminPost(
-      'getMyOrder',
+      guestMode
+        ? 'guestGetMyOrder'
+        : 'getMyOrder',
       {
         buyId: currentBuy.buyId,
+        shareToken:
+          guestMode
+            ? currentGuestToken
+            : '',
         orderType: currentOrderType,
-        orderName: currentOrderType === 'PROXY' ? proxyName : ''
+        orderName:
+          currentOrderType === 'PROXY'
+            ? proxyName
+            : ''
       }
     );
 
@@ -1556,13 +1814,25 @@ async function confirmOrder() {
 
   try {
     const result = await adminPost(
-      'saveOrder',
+      guestMode
+        ? 'guestSaveOrder'
+        : 'saveOrder',
       {
         buyId: currentBuy.buyId,
+        shareToken:
+          guestMode
+            ? currentGuestToken
+            : '',
         quantity: quantity,
-        lineName: currentUser ? currentUser.displayName : '',
+        lineName:
+          currentUser
+            ? currentUser.displayName
+            : '',
         orderType: currentOrderType,
-        orderName: currentOrderType === 'PROXY' ? proxyName : ''
+        orderName:
+          currentOrderType === 'PROXY'
+            ? proxyName
+            : ''
       }
     );
 
@@ -1572,7 +1842,12 @@ async function confirmOrder() {
 
     closeOrder();
     alert(result.message || '訂單已儲存');
-    loadOpenGroupBuys();
+
+    if (guestMode) {
+      await loadGuestSharedGroupBuy();
+    } else {
+      loadOpenGroupBuys();
+    }
 
   } catch (error) {
     setOrderLoadingState(false);
@@ -1793,6 +2068,12 @@ function renderAdminList() {
         ${
           canOwnerClose
             ? `<button class="danger" onclick="changeGroupBuyStatus('adminCloseGroupBuy','${escapeJs(item.buyId)}','確定要關閉這一團嗎？')">關團</button>`
+            : ''
+        }
+
+        ${
+          status === 'OPEN' && (isOwner || isAdmin)
+            ? `<button class="outline" onclick="shareGroupBuyLink('${escapeJs(item.buyId)}')">分享此團</button>`
             : ''
         }
 
