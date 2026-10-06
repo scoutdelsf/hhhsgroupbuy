@@ -521,7 +521,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.9.2</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.9.3</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -586,9 +586,9 @@
 
         <label for="orderQty" style="margin-top:16px;">我要的總數量</label>
         <div class="order-quantity-row">
-          <button type="button" class="outline" onclick="changeOrderQuantity(-1)">−</button>
+          <button id="orderMinusButton" type="button" class="outline" onclick="changeOrderQuantity(-1)">−</button>
           <input type="number" id="orderQty" min="0" max="9999" step="1" value="0" inputmode="numeric" oninput="updateOrderTotal()">
-          <button type="button" onclick="changeOrderQuantity(1)">＋</button>
+          <button id="orderPlusButton" type="button" onclick="changeOrderQuantity(1)">＋</button>
         </div>
 
         <div class="muted">請輸入你目前要的總數量；輸入 0 代表取消此訂單。</div>
@@ -1280,6 +1280,32 @@ function handleParticipantsBackdrop(event) {
 }
 
 
+
+function setOrderLoadingState(isLoading) {
+  const minusButton = document.getElementById('orderMinusButton');
+  const plusButton = document.getElementById('orderPlusButton');
+  const quantityInput = document.getElementById('orderQuantity');
+  const saveButton = document.getElementById('orderSaveButton');
+  const hint = document.getElementById('orderLoadingHint');
+
+  [minusButton, plusButton, quantityInput, saveButton].forEach(function(el) {
+    if (el) el.disabled = isLoading;
+  });
+
+  if (saveButton) {
+    saveButton.textContent = isLoading ? '訂單讀取中…' : '儲存訂單';
+  }
+
+  if (hint) {
+    hint.style.display = isLoading ? 'block' : 'none';
+
+    if (!isLoading) {
+      hint.textContent = '訂單讀取中，請稍候…';
+    }
+  }
+}
+
+
 async function openOrder(buyId) {
   const item = window.currentGroupBuys.find(
     x => String(x.buyId) === String(buyId)
@@ -1331,8 +1357,7 @@ async function openOrder(buyId) {
     return;
   }
 
-  saveButton.disabled = false;
-  saveButton.textContent = '儲存訂單';
+  setOrderLoadingState(false);
 }
 
 
@@ -1372,8 +1397,18 @@ async function confirmOrder() {
   }
 
   const saveButton = document.getElementById('orderSaveButton');
-  saveButton.disabled = true;
-  saveButton.textContent = '儲存中…';
+
+  setOrderLoadingState(true);
+
+  if (saveButton) {
+    saveButton.textContent = '儲存中…';
+  }
+
+  const hint = document.getElementById('orderLoadingHint');
+  if (hint) {
+    hint.style.display = 'block';
+    hint.textContent = '訂單儲存中，請稍候…';
+  }
 
   try {
     const result = await adminPost(
@@ -1394,8 +1429,13 @@ async function confirmOrder() {
     loadOpenGroupBuys();
 
   } catch (error) {
-    saveButton.disabled = false;
-    saveButton.textContent = '儲存訂單';
+    setOrderLoadingState(false);
+
+    const hint = document.getElementById('orderLoadingHint');
+    if (hint) {
+      hint.textContent = '訂單讀取中，請稍候…';
+    }
+
     alert(error.message || String(error));
   }
 }
