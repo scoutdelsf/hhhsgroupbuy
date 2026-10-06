@@ -573,7 +573,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.4</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.5</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1096,7 +1096,7 @@ async function shareGroupBuyLink(
   try {
     setAdminBusy(
       true,
-      '產生分享內容中…',
+      '準備分享中…',
       '正在建立你的專屬分享連結。'
     );
 
@@ -1177,6 +1177,56 @@ async function shareGroupBuyLink(
       +
       shareUrl;
 
+    const canUseTargetPicker =
+      window.liff
+      &&
+      typeof liff.isApiAvailable === 'function'
+      &&
+      liff.isApiAvailable(
+        'shareTargetPicker'
+      )
+      &&
+      typeof liff.shareTargetPicker === 'function';
+
+    if (canUseTargetPicker) {
+      try {
+        const pickerResult =
+          await liff.shareTargetPicker([
+            {
+              type: 'text',
+              text: shareText
+            }
+          ]);
+
+        if (
+          pickerResult
+          &&
+          pickerResult.status
+          === 'success'
+        ) {
+          return;
+        }
+
+        // 使用者取消選擇時，不當成錯誤。
+        if (
+          pickerResult
+          &&
+          pickerResult.status
+          === 'cancel'
+        ) {
+          return;
+        }
+
+      } catch (pickerError) {
+        console.warn(
+          'shareTargetPicker failed:',
+          pickerError
+        );
+      }
+    }
+
+    // 不支援 shareTargetPicker 時的備援：
+    // 複製整段分享文字。
     if (
       navigator.clipboard
       &&
@@ -1187,7 +1237,9 @@ async function shareGroupBuyLink(
       );
 
       alert(
-        '分享文字已複製，可以直接貼到 LINE。'
+        '目前環境無法直接開啟 LINE 分享對象選擇器。'
+        +
+        '\n已將分享文字複製，可以直接貼到 LINE。'
         +
         '\n\n'
         +
