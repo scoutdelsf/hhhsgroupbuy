@@ -514,6 +514,25 @@
       color: var(--gb-green-dark);
     }
 
+
+    .order-quantity-row button:disabled,
+    #orderQty:disabled,
+    #orderSaveButton:disabled {
+      opacity: .42;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    #orderLoadingHint {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #f3f6f4;
+      color: #65736b;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
 </style>
 </head>
 
@@ -521,7 +540,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.9.3</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.9.4</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -591,7 +610,11 @@
           <button id="orderPlusButton" type="button" onclick="changeOrderQuantity(1)">＋</button>
         </div>
 
+        <div id="orderLoadingHint">訂單讀取中，請稍候…</div>
         <div class="muted">請輸入你目前要的總數量；輸入 0 代表取消此訂單。</div>
+        <div class="muted" style="margin-top:6px;">
+          同一位使用者在同一團只會保留一筆訂單；再次儲存會更新原本數量，不會累加成第二筆。
+        </div>
         <div class="summary">預估金額：<span id="orderTotal">$0</span></div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px;">
@@ -743,6 +766,7 @@ let currentGroupKey = '';
 let currentGroupSessionToken = '';
 let currentGroupName = '';
 let currentBuy = null;
+let orderDataReady = false;
 let isAdmin = false;
 
 let adminImageData = '';
@@ -1284,9 +1308,11 @@ function handleParticipantsBackdrop(event) {
 function setOrderLoadingState(isLoading) {
   const minusButton = document.getElementById('orderMinusButton');
   const plusButton = document.getElementById('orderPlusButton');
-  const quantityInput = document.getElementById('orderQuantity');
+  const quantityInput = document.getElementById('orderQty');
   const saveButton = document.getElementById('orderSaveButton');
   const hint = document.getElementById('orderLoadingHint');
+
+  orderDataReady = !isLoading;
 
   [minusButton, plusButton, quantityInput, saveButton].forEach(function(el) {
     if (el) el.disabled = isLoading;
@@ -1298,10 +1324,7 @@ function setOrderLoadingState(isLoading) {
 
   if (hint) {
     hint.style.display = isLoading ? 'block' : 'none';
-
-    if (!isLoading) {
-      hint.textContent = '訂單讀取中，請稍候…';
-    }
+    hint.textContent = '訂單讀取中，請稍候…';
   }
 }
 
@@ -1329,14 +1352,14 @@ async function openOrder(buyId) {
   document.getElementById('orderQty').value = 0;
 
   const panel = document.getElementById('orderPanel');
+
+  // 先鎖住數量操作，再顯示視窗，避免讀取期間任何操作。
+  setOrderLoadingState(true);
+
   panel.classList.add('show');
   document.body.classList.add('modal-open');
 
   updateOrderTotal();
-
-  const saveButton = document.getElementById('orderSaveButton');
-  saveButton.disabled = true;
-  saveButton.textContent = '讀取訂單中…';
 
   try {
     const result = await adminPost(
@@ -1372,6 +1395,8 @@ function updateOrderTotal() {
 
 
 function changeOrderQuantity(delta) {
+  if (!orderDataReady) return;
+
   const input = document.getElementById('orderQty');
   let value = Number(input.value || 0);
 
@@ -1384,6 +1409,10 @@ function changeOrderQuantity(delta) {
 
 
 async function confirmOrder() {
+  if (!orderDataReady) {
+    return;
+  }
+
   if (!currentBuy) {
     alert('目前沒有可儲存的團購');
     return;
