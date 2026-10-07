@@ -690,6 +690,11 @@
       border-radius: 11px;
     }
 
+    .home-toolbar #adminEntry .toolbar-button-line {
+      display: block;
+      line-height: 1.35;
+    }
+
     .home-toolbar .user-box {
       font-size: 12px;
       line-height: 1.45;
@@ -724,10 +729,6 @@
       .home-toolbar .user-box,
       .home-toolbar #adminEntry {
         padding: 10px 8px;
-      }
-
-      .home-toolbar #adminEntry > div:last-child {
-        grid-template-columns: 1fr !important;
       }
 
       .home-tab {
@@ -796,7 +797,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.12</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.14</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -805,8 +806,14 @@
 
     <div id="adminEntry" style="display:none;" class="section">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <button onclick="openCreateForm()">＋ 我要開團</button>
-        <button class="outline" onclick="openAdminPanel()">開團管理專區</button>
+        <button onclick="openCreateForm()">
+          <span class="toolbar-button-line">＋ 我要</span>
+          <span class="toolbar-button-line">開團</span>
+        </button>
+        <button class="outline" onclick="openAdminPanel()">
+          <span class="toolbar-button-line">開團管理</span>
+          <span class="toolbar-button-line">專區</span>
+        </button>
       </div>
     </div>
   </div>
