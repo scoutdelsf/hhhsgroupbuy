@@ -830,6 +830,164 @@
       }
     }
 
+    .product-mode-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+      padding: 4px;
+      border-radius: 12px;
+      background: #f1f5f2;
+    }
+
+    .product-mode-tab {
+      min-height: 42px;
+      border: 0;
+      border-radius: 9px;
+      background: transparent;
+      color: #65736b;
+      font-weight: 800;
+    }
+
+    .product-mode-tab.active {
+      background: #fff;
+      color: #246b3f;
+      box-shadow: 0 2px 8px rgba(32, 78, 49, .08);
+    }
+
+    .category-editor-list,
+    .category-order-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .category-editor-row {
+      padding: 12px;
+      border: 1px solid #d7e7dc;
+      border-radius: 12px;
+      background: #f7fbf8;
+    }
+
+    .category-editor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+    }
+
+    .category-editor-grid .wide {
+      grid-column: 1 / -1;
+    }
+
+    .category-editor-row label {
+      margin-top: 0;
+    }
+
+    .category-editor-remove {
+      width: 100%;
+      margin-top: 9px;
+    }
+
+    .category-order-group {
+      overflow: hidden;
+      border: 1px solid #d7e7dc;
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .category-order-title {
+      padding: 10px 12px;
+      background: #eef9f2;
+      color: #246b3f;
+      font-weight: 800;
+    }
+
+    .category-order-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 11px 12px;
+    }
+
+    .category-order-row + .category-order-row {
+      border-top: 1px solid #edf3ef;
+    }
+
+    .category-order-name {
+      font-weight: 800;
+    }
+
+    .category-order-price {
+      margin-top: 3px;
+      color: #6f7f75;
+      font-size: 12px;
+    }
+
+    .category-order-stepper {
+      display: grid;
+      grid-template-columns: 38px 46px 38px;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .category-order-stepper button {
+      width: 38px;
+      min-width: 38px;
+      padding: 9px 0;
+    }
+
+    .category-order-stepper input {
+      width: 46px;
+      min-width: 0;
+      padding: 9px 4px;
+      text-align: center;
+    }
+
+    .category-order-note {
+      margin-top: 8px;
+      color: #6f7f75;
+      font-size: 12px;
+    }
+
+    .participant-item-lines {
+      display: grid;
+      gap: 2px;
+      margin-top: 5px;
+      color: #6f7f75;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    @media (max-width: 380px) {
+      .category-editor-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .category-editor-grid .wide {
+        grid-column: auto;
+      }
+
+      .category-order-row {
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+
+      .category-order-stepper {
+        grid-template-columns: 36px 42px 36px;
+        gap: 4px;
+      }
+
+      .category-order-stepper button {
+        width: 36px;
+        min-width: 36px;
+      }
+
+      .category-order-stepper input {
+        width: 42px;
+      }
+    }
+
 </style>
 </head>
 
@@ -837,7 +995,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.18</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.19</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -905,7 +1063,7 @@
 
       <div class="order-modal-body">
         <div id="orderDescription" class="description"></div>
-        <div class="info">單價：<strong id="orderPrice"></strong> / <span id="orderUnit"></span></div>
+        <div id="singleOrderPriceInfo" class="info">單價：<strong id="orderPrice"></strong> / <span id="orderUnit"></span></div>
         <div class="info">截止：<span id="orderEndAt"></span></div>
         <div class="info">
           目前團購：
@@ -930,15 +1088,23 @@
           <input id="proxyOrderName" type="text" maxlength="40" placeholder="例如：王小明">
         </div>
 
-        <label for="orderQty" style="margin-top:16px;">我要的總數量</label>
-        <div class="order-quantity-row">
-          <button id="orderMinusButton" type="button" class="outline" onclick="changeOrderQuantity(-1)">−</button>
-          <input type="number" id="orderQty" min="0" max="9999" step="1" value="0" inputmode="numeric" oninput="updateOrderTotal()">
-          <button id="orderPlusButton" type="button" onclick="changeOrderQuantity(1)">＋</button>
+        <div id="singleOrderControls">
+          <label for="orderQty" style="margin-top:16px;">我要的總數量</label>
+          <div class="order-quantity-row">
+            <button id="orderMinusButton" type="button" class="outline" onclick="changeOrderQuantity(-1)">−</button>
+            <input type="number" id="orderQty" min="0" max="9999" step="1" value="0" inputmode="numeric" oninput="updateOrderTotal()">
+            <button id="orderPlusButton" type="button" onclick="changeOrderQuantity(1)">＋</button>
+          </div>
+          <div class="muted">請輸入你目前要的總數量；輸入 0 代表取消此訂單。</div>
+        </div>
+
+        <div id="categoryOrderControls" style="display:none;">
+          <label style="margin-top:16px;">選擇各次類別數量</label>
+          <div id="categoryOrderList" class="category-order-list"></div>
+          <div class="category-order-note">所有次類別數量都是 0 時，代表取消此訂單。</div>
         </div>
 
         <div id="orderLoadingHint">訂單讀取中，請稍候…</div>
-        <div class="muted">請輸入你目前要的總數量；輸入 0 代表取消此訂單。</div>
         <div class="muted" style="margin-top:6px;">
           本人訂單：同一位使用者在同一團只保留一筆；再次儲存會更新原本數量。<br>
           代人下單：可替不同姓名分別建立訂單；相同姓名再次儲存會更新該筆代填訂單。
@@ -989,11 +1155,27 @@
         <label>商品說明</label>
         <textarea id="adminDescription"></textarea>
 
-        <label>單價</label>
-        <input id="adminPrice" type="number" min="0" step="1">
+        <label>商品類型</label>
+        <div class="product-mode-tabs">
+          <button id="adminSingleModeTab" class="product-mode-tab active" type="button" onclick="setAdminProductMode('SINGLE')">單一商品</button>
+          <button id="adminCategoryModeTab" class="product-mode-tab" type="button" onclick="setAdminProductMode('CATEGORY')">主類別／次類別</button>
+        </div>
+        <input id="adminProductMode" type="hidden" value="SINGLE">
 
-        <label>單位</label>
-        <input id="adminUnit" type="text" placeholder="例如：盒、顆、條">
+        <div id="adminSingleProductFields">
+          <label>單價</label>
+          <input id="adminPrice" type="number" min="0" step="1">
+
+          <label>單位</label>
+          <input id="adminUnit" type="text" placeholder="例如：盒、顆、條">
+        </div>
+
+        <div id="adminCategoryFields" style="display:none;">
+          <label style="margin-top:16px;">分類商品</label>
+          <div class="muted">每一列代表一個可訂購的次類別；相同主類別可重複填寫。</div>
+          <div id="adminCategoryItems" class="category-editor-list"></div>
+          <button type="button" class="outline" style="width:100%;margin-top:10px;" onclick="addAdminCategoryItem()">＋ 新增次類別</button>
+        </div>
 
         <label>商品圖片</label>
         <input
@@ -1098,6 +1280,9 @@ let currentGuestToken = '';
 let currentBuy = null;
 let orderDataReady = false;
 let currentOrderType = 'SELF';
+let currentOrderItems = [];
+let adminProductMode = 'SINGLE';
+let adminCategoryRowSequence = 0;
 let isAdmin = false;
 let canUseGroupDataTools = false;
 
@@ -1450,19 +1635,29 @@ async function shareGroupBuyLink(
         : '';
 
     const priceText =
-      price !== ''
+      isCategoryGroupBuy(item)
         ? (
-            price
+            '分類商品共'
             +
-            '元'
+            item.items.length
             +
-            (
-              unit
-                ? '/' + unit
-                : ''
-            )
+            '項'
           )
-        : '';
+        : (
+            price !== ''
+              ? (
+                  price
+                  +
+                  '元'
+                  +
+                  (
+                    unit
+                      ? '/' + unit
+                      : ''
+                  )
+                )
+              : ''
+          );
 
     const shareText =
       '分享好康團購【'
@@ -1745,47 +1940,221 @@ function refreshMyHostStats() {
 }
 
 
+function isCategoryGroupBuy(item) {
+  return !!(
+    item
+    &&
+    Array.isArray(item.items)
+    &&
+    item.items.length > 0
+  );
+}
+
+
+function loadGroupBuyItemsForRow(item) {
+  if (!item) {
+    return Promise.resolve(item);
+  }
+
+  if (Array.isArray(item.items)) {
+    item.productMode =
+      item.items.length > 0
+        ? 'CATEGORY'
+        : 'SINGLE';
+
+    return Promise.resolve(item);
+  }
+
+  if (guestMode) {
+    item.items = [];
+    item.productMode = 'SINGLE';
+    return Promise.resolve(item);
+  }
+
+  return new Promise(function(resolve) {
+    const callbackName =
+      'handleGroupBuyItems_'
+      +
+      Date.now()
+      +
+      '_'
+      +
+      Math.random()
+        .toString(36)
+        .slice(2);
+
+    window[callbackName] = function(result) {
+      const rows =
+        result
+        &&
+        result.success
+        &&
+        Array.isArray(result.data)
+          ? result.data
+          : [];
+
+      item.items = rows;
+      item.productMode =
+        rows.length > 0
+          ? 'CATEGORY'
+          : 'SINGLE';
+
+      delete window[callbackName];
+      resolve(item);
+    };
+
+    jsonp(
+      'groupBuyItems',
+      callbackName,
+      {
+        sessionToken:
+          currentGroupSessionToken,
+        buyId:
+          item.buyId
+      },
+      function() {
+        item.items = [];
+        item.productMode = 'SINGLE';
+        delete window[callbackName];
+        resolve(item);
+      }
+    );
+  });
+}
+
+
+function hydrateGroupBuyItems(items) {
+  const rows =
+    Array.isArray(items)
+      ? items
+      : [];
+
+  return Promise.all(
+    rows.map(loadGroupBuyItemsForRow)
+  );
+}
+
+
+function renderGroupBuyPriceInfo(item) {
+  if (!isCategoryGroupBuy(item)) {
+    return `
+      ${renderGroupBuyPriceInfo(item)}
+    `;
+  }
+
+  const prices =
+    item.items
+      .map(row => Number(row.price || 0))
+      .filter(value => Number.isFinite(value));
+
+  const minPrice =
+    prices.length
+      ? Math.min.apply(null, prices)
+      : 0;
+
+  const maxPrice =
+    prices.length
+      ? Math.max.apply(null, prices)
+      : 0;
+
+  const priceText =
+    minPrice === maxPrice
+      ? '$' + formatNumber(minPrice)
+      : '$' + formatNumber(minPrice) + '～$' + formatNumber(maxPrice);
+
+  return `
+    <div class="info">
+      分類商品：${item.items.length} 項｜${priceText}
+    </div>
+  `;
+}
+
+
 function loadOpenGroupBuys() {
-  window.handleOpenGroupBuys = function(result) {
+  window.handleOpenGroupBuys = async function(result) {
     if (!result || !result.success) {
-      showRetry('openLoading', '團購資料讀取失敗', 'loadOpenGroupBuys()');
+      showRetry(
+        'openLoading',
+        '團購資料讀取失敗',
+        'loadOpenGroupBuys()'
+      );
       return;
     }
 
-    window.currentGroupBuys = result.data || [];
+    window.currentGroupBuys =
+      await hydrateGroupBuyItems(
+        result.data || []
+      );
+
     refreshMyHostStats();
-    renderCarousel(window.currentGroupBuys, 'openCarousel', 'openDots', 'openLoading', true);
+
+    renderCarousel(
+      window.currentGroupBuys,
+      'openCarousel',
+      'openDots',
+      'openLoading',
+      true
+    );
   };
 
   jsonp(
     'openGroupBuys',
     'handleOpenGroupBuys',
-    { sessionToken: currentGroupSessionToken },
+    {
+      sessionToken:
+        currentGroupSessionToken
+    },
     function() {
-      showRetry('openLoading', '無法連線至團購資料庫', 'loadOpenGroupBuys()');
+      showRetry(
+        'openLoading',
+        '無法連線至團購資料庫',
+        'loadOpenGroupBuys()'
+      );
     }
   );
 }
 
 
 function loadClosedGroupBuys() {
-  window.handleClosedGroupBuys = function(result) {
+  window.handleClosedGroupBuys = async function(result) {
     if (!result || !result.success) {
-      showRetry('closedLoading', '歷史資料讀取失敗', 'loadClosedGroupBuys()');
+      showRetry(
+        'closedLoading',
+        '歷史資料讀取失敗',
+        'loadClosedGroupBuys()'
+      );
       return;
     }
 
-    window.currentClosedGroupBuys = result.data || [];
+    window.currentClosedGroupBuys =
+      await hydrateGroupBuyItems(
+        result.data || []
+      );
+
     refreshMyHostStats();
-    renderCarousel(window.currentClosedGroupBuys, 'closedCarousel', 'closedDots', 'closedLoading', false);
+
+    renderCarousel(
+      window.currentClosedGroupBuys,
+      'closedCarousel',
+      'closedDots',
+      'closedLoading',
+      false
+    );
   };
 
   jsonp(
     'recentClosedGroupBuys',
     'handleClosedGroupBuys',
-    { sessionToken: currentGroupSessionToken },
+    {
+      sessionToken:
+        currentGroupSessionToken
+    },
     function() {
-      showRetry('closedLoading', '無法讀取歷史資料', 'loadClosedGroupBuys()');
+      showRetry(
+        'closedLoading',
+        '無法讀取歷史資料',
+        'loadClosedGroupBuys()'
+      );
     }
   );
 }
@@ -1793,7 +2162,7 @@ function loadClosedGroupBuys() {
 
 
 function loadSuspendedGroupBuys() {
-  window.handleSuspendedGroupBuys = function(result) {
+  window.handleSuspendedGroupBuys = async function(result) {
     if (!result || !result.success) {
       showRetry(
         'suspendedLoading',
@@ -1803,8 +2172,13 @@ function loadSuspendedGroupBuys() {
       return;
     }
 
+    const rows =
+      await hydrateGroupBuyItems(
+        result.data || []
+      );
+
     renderCarousel(
-      result.data || [],
+      rows,
       'suspendedCarousel',
       'suspendedDots',
       'suspendedLoading',
@@ -1816,7 +2190,10 @@ function loadSuspendedGroupBuys() {
   jsonp(
     'suspendedGroupBuys',
     'handleSuspendedGroupBuys',
-    { sessionToken: currentGroupSessionToken },
+    {
+      sessionToken:
+        currentGroupSessionToken
+    },
     function() {
       showRetry(
         'suspendedLoading',
@@ -1898,9 +2275,7 @@ function renderCarousel(items, carouselId, dotsId, loadingId, openMode, forcedSt
           ? `<div class="description">${escapeHtml(item.description)}</div>`
           : ''}
 
-        <div class="info">
-          單價：$${formatNumber(item.price)} / ${escapeHtml(item.unit)}
-        </div>
+        ${renderGroupBuyPriceInfo(item)}
 
         <div class="info">
           ${openMode ? '截止' : '關團'}：
@@ -1910,7 +2285,7 @@ function renderCarousel(items, carouselId, dotsId, loadingId, openMode, forcedSt
         <div class="summary">
           ${openMode ? '' : '最終：'}
           ${Number(item.peopleCount || 0)} 人｜
-          ${Number(item.totalQuantity || 0)} ${escapeHtml(item.unit)}
+          ${Number(item.totalQuantity || 0)} ${isCategoryGroupBuy(item) ? '件' : escapeHtml(item.unit)}
         </div>
 
         ${openMode
@@ -2133,6 +2508,31 @@ function openParticipants(buyId) {
               `);
             }
 
+            const orderItemLines =
+              Array.isArray(row.items)
+                ? row.items
+                : [];
+
+            const itemDetails =
+              orderItemLines.length
+                ? `
+                    <div class="participant-item-lines">
+                      ${orderItemLines
+                        .map(orderItem => `
+                          <div>
+                            ${escapeHtml(orderItem.mainCategory || '')}
+                            ／
+                            ${escapeHtml(orderItem.subCategory || '')}
+                            ${orderItem.optionName ? '／' + escapeHtml(orderItem.optionName) : ''}
+                            × ${Number(orderItem.quantity || 0)}
+                            ${escapeHtml(orderItem.unit || '')}
+                          </div>
+                        `)
+                        .join('')}
+                    </div>
+                  `
+                : '';
+
             return `
               <div class="participant-row">
                 <div class="participant-main">
@@ -2140,9 +2540,11 @@ function openParticipants(buyId) {
                     ${escapeHtml(participantName)}
                     ${sources.join(' ')}
                   </div>
+                  ${itemDetails}
                 </div>
                 <div class="participant-qty">
-                  ${Number(row.quantity || 0)} ${escapeHtml(item.unit || '')}
+                  ${Number(row.quantity || 0)}
+                  ${orderItemLines.length ? '件' : escapeHtml(item.unit || '')}
                 </div>
               </div>
             `;
@@ -2314,6 +2716,8 @@ async function setOrderMode(type) {
     input.value = 0;
   }
 
+  resetCategoryOrderQuantities();
+
   if (
     currentOrderType === 'SELF'
   ) {
@@ -2351,12 +2755,31 @@ async function setOrderMode(type) {
 async function loadSelectedOrderQuantity() {
   if (!currentBuy) return;
 
-  const proxyNameInput = document.getElementById('proxyOrderName');
-  const proxyName = proxyNameInput ? proxyNameInput.value.trim() : '';
+  const proxyNameInput =
+    document.getElementById(
+      'proxyOrderName'
+    );
 
-  if (currentOrderType === 'PROXY' && !proxyName) {
-    const input = document.getElementById('orderQty');
-    if (input) input.value = 0;
+  const proxyName =
+    proxyNameInput
+      ? proxyNameInput.value.trim()
+      : '';
+
+  if (
+    currentOrderType === 'PROXY'
+    &&
+    !proxyName
+  ) {
+    const input =
+      document.getElementById(
+        'orderQty'
+      );
+
+    if (input) {
+      input.value = 0;
+    }
+
+    resetCategoryOrderQuantities();
     updateOrderTotal();
     return;
   }
@@ -2364,39 +2787,88 @@ async function loadSelectedOrderQuantity() {
   setOrderLoadingState(true);
 
   try {
-    const result = await adminPost(
-      guestMode
-        ? 'guestGetMyOrder'
-        : 'getMyOrder',
-      {
-        buyId: currentBuy.buyId,
-        shareToken:
-          guestMode
-            ? currentGuestToken
-            : '',
-        orderType: currentOrderType,
-        orderName:
-          currentOrderType === 'PROXY'
-            ? proxyName
-            : ''
-      }
-    );
+    const result =
+      await adminPost(
+        guestMode
+          ? 'guestGetMyOrder'
+          : 'getMyOrder',
+        {
+          buyId:
+            currentBuy.buyId,
+
+          shareToken:
+            guestMode
+              ? currentGuestToken
+              : '',
+
+          orderType:
+            currentOrderType,
+
+          orderName:
+            currentOrderType === 'PROXY'
+              ? proxyName
+              : ''
+        }
+      );
 
     if (!result.success) {
-      throw new Error(result.message || '無法讀取目前訂單');
+      throw new Error(
+        result.message
+        ||
+        '無法讀取目前訂單'
+      );
     }
 
-    const input = document.getElementById('orderQty');
-    if (input) {
-      input.value = Number(result.quantity || 0);
+    if (isCategoryGroupBuy(currentBuy)) {
+      const quantityByItemId = {};
+
+      (
+        Array.isArray(result.items)
+          ? result.items
+          : []
+      ).forEach(row => {
+        quantityByItemId[
+          String(row.itemId || '')
+        ] = Number(row.quantity || 0);
+      });
+
+      document
+        .querySelectorAll(
+          '#categoryOrderList .category-order-qty'
+        )
+        .forEach(input => {
+          input.value =
+            quantityByItemId[
+              String(input.dataset.itemId || '')
+            ]
+            ||
+            0;
+        });
+    } else {
+      const input =
+        document.getElementById(
+          'orderQty'
+        );
+
+      if (input) {
+        input.value =
+          Number(result.quantity || 0);
+      }
     }
+
     updateOrderTotal();
+
   } catch (error) {
-    alert(error.message || String(error));
+    alert(
+      error.message
+      ||
+      String(error)
+    );
   } finally {
     setOrderLoadingState(false);
   }
 }
+
 
 function setOrderLoadingState(isLoading) {
   const controls = [
@@ -2409,60 +2881,324 @@ function setOrderLoadingState(isLoading) {
     document.getElementById('proxyOrderName')
   ];
 
-  const saveButton = document.getElementById('orderSaveButton');
-  const hint = document.getElementById('orderLoadingHint');
+  document
+    .querySelectorAll(
+      '#categoryOrderList button, #categoryOrderList input'
+    )
+    .forEach(element => {
+      controls.push(element);
+    });
+
+  const saveButton =
+    document.getElementById(
+      'orderSaveButton'
+    );
+
+  const hint =
+    document.getElementById(
+      'orderLoadingHint'
+    );
 
   orderDataReady = !isLoading;
 
-  controls.forEach(function(el) {
-    if (el) el.disabled = isLoading;
+  controls.forEach(function(element) {
+    if (element) {
+      element.disabled = isLoading;
+    }
   });
 
   if (saveButton) {
-    saveButton.textContent = isLoading ? '訂單讀取中…' : '儲存訂單';
+    saveButton.textContent =
+      isLoading
+        ? '訂單讀取中…'
+        : '儲存訂單';
   }
 
   if (hint) {
-    hint.style.display = isLoading ? 'block' : 'none';
-    hint.textContent = '訂單讀取中，請稍候…';
+    hint.style.display =
+      isLoading
+        ? 'block'
+        : 'none';
+
+    hint.textContent =
+      '訂單讀取中，請稍候…';
+  }
+
+  if (!isLoading) {
+    refreshOrderTypeUI();
   }
 }
 
 
+function renderCategoryOrderControls(items) {
+  const list =
+    document.getElementById(
+      'categoryOrderList'
+    );
+
+  const groups = {};
+
+  (
+    Array.isArray(items)
+      ? items
+      : []
+  ).forEach(item => {
+    const mainCategory =
+      String(
+        item.mainCategory || '其他'
+      ).trim();
+
+    if (!groups[mainCategory]) {
+      groups[mainCategory] = [];
+    }
+
+    groups[mainCategory].push(item);
+  });
+
+  list.innerHTML =
+    Object.keys(groups)
+      .map(mainCategory => {
+        const rows =
+          groups[mainCategory]
+            .map(item => {
+              const optionText =
+                item.optionName
+                  ? '｜' + escapeHtml(item.optionName)
+                  : '';
+
+              return `
+                <div class="category-order-row">
+                  <div>
+                    <div class="category-order-name">
+                      ${escapeHtml(item.subCategory || '')}${optionText}
+                    </div>
+                    <div class="category-order-price">
+                      $${formatNumber(item.price)}／${escapeHtml(item.unit || '')}
+                    </div>
+                  </div>
+
+                  <div class="category-order-stepper">
+                    <button
+                      type="button"
+                      class="outline"
+                      onclick="changeCategoryOrderQuantity('${escapeJs(item.itemId)}', -1)"
+                    >−</button>
+
+                    <input
+                      class="category-order-qty"
+                      type="number"
+                      min="0"
+                      max="9999"
+                      step="1"
+                      value="0"
+                      inputmode="numeric"
+                      data-item-id="${escapeHtml(item.itemId)}"
+                      data-price="${Number(item.price || 0)}"
+                      oninput="updateOrderTotal()"
+                    >
+
+                    <button
+                      type="button"
+                      onclick="changeCategoryOrderQuantity('${escapeJs(item.itemId)}', 1)"
+                    >＋</button>
+                  </div>
+                </div>
+              `;
+            })
+            .join('');
+
+        return `
+          <div class="category-order-group">
+            <div class="category-order-title">
+              ${escapeHtml(mainCategory)}
+            </div>
+            ${rows}
+          </div>
+        `;
+      })
+      .join('');
+}
+
+
+function resetCategoryOrderQuantities() {
+  document
+    .querySelectorAll(
+      '#categoryOrderList .category-order-qty'
+    )
+    .forEach(input => {
+      input.value = 0;
+    });
+}
+
+
 async function openOrder(buyId) {
-  const item = window.currentGroupBuys.find(
-    x => String(x.buyId) === String(buyId)
-  );
+  const item =
+    window.currentGroupBuys.find(
+      row =>
+        String(row.buyId)
+        ===
+        String(buyId)
+    );
 
   if (!item) {
-    alert('找不到這個團購項目');
+    alert(
+      '找不到這個團購項目'
+    );
     return;
   }
 
-  currentBuy = item;
+  currentBuy =
+    await loadGroupBuyItemsForRow(
+      item
+    );
+
+  currentOrderItems =
+    Array.isArray(currentBuy.items)
+      ? currentBuy.items
+      : [];
+
   currentOrderType = 'SELF';
 
-  const proxyNameInput = document.getElementById('proxyOrderName');
-  if (proxyNameInput) proxyNameInput.value = '';
+  const proxyNameInput =
+    document.getElementById(
+      'proxyOrderName'
+    );
+
+  if (proxyNameInput) {
+    proxyNameInput.value = '';
+  }
+
   refreshOrderTypeUI();
 
-  document.getElementById('orderProductName').textContent = item.name || '';
-  document.getElementById('orderDescription').textContent = item.description || '';
-  document.getElementById('orderPrice').textContent = '$' + formatNumber(item.price);
-  document.getElementById('orderUnit').textContent = item.unit || '';
-  document.getElementById('orderEndAt').textContent = formatDate(item.endAt);
-  document.getElementById('orderPeopleCount').textContent = Number(item.peopleCount || 0);
-  document.getElementById('orderTotalQuantity').textContent = Number(item.totalQuantity || 0);
-  document.getElementById('orderSummaryUnit').textContent = item.unit || '';
-  document.getElementById('orderQty').value = 0;
+  document
+    .getElementById(
+      'orderProductName'
+    )
+    .textContent =
+      currentBuy.name || '';
 
-  const panel = document.getElementById('orderPanel');
+  document
+    .getElementById(
+      'orderDescription'
+    )
+    .textContent =
+      currentBuy.description || '';
 
-  // 先鎖住數量操作，再顯示視窗，避免讀取期間任何操作。
+  document
+    .getElementById(
+      'orderPrice'
+    )
+    .textContent =
+      '$'
+      +
+      formatNumber(
+        currentBuy.price
+      );
+
+  document
+    .getElementById(
+      'orderUnit'
+    )
+    .textContent =
+      currentBuy.unit || '';
+
+  document
+    .getElementById(
+      'orderEndAt'
+    )
+    .textContent =
+      formatDate(
+        currentBuy.endAt
+      );
+
+  document
+    .getElementById(
+      'orderPeopleCount'
+    )
+    .textContent =
+      Number(
+        currentBuy.peopleCount || 0
+      );
+
+  document
+    .getElementById(
+      'orderTotalQuantity'
+    )
+    .textContent =
+      Number(
+        currentBuy.totalQuantity || 0
+      );
+
+  const categoryMode =
+    isCategoryGroupBuy(
+      currentBuy
+    );
+
+  document
+    .getElementById(
+      'orderSummaryUnit'
+    )
+    .textContent =
+      categoryMode
+        ? '件'
+        : currentBuy.unit || '';
+
+  document
+    .getElementById(
+      'singleOrderPriceInfo'
+    )
+    .style.display =
+      categoryMode
+        ? 'none'
+        : 'block';
+
+  document
+    .getElementById(
+      'singleOrderControls'
+    )
+    .style.display =
+      categoryMode
+        ? 'none'
+        : 'block';
+
+  document
+    .getElementById(
+      'categoryOrderControls'
+    )
+    .style.display =
+      categoryMode
+        ? 'block'
+        : 'none';
+
+  document
+    .getElementById(
+      'orderQty'
+    )
+    .value = 0;
+
+  if (categoryMode) {
+    renderCategoryOrderControls(
+      currentOrderItems
+    );
+  } else {
+    document
+      .getElementById(
+        'categoryOrderList'
+      )
+      .innerHTML = '';
+  }
+
+  const panel =
+    document.getElementById(
+      'orderPanel'
+    );
+
   setOrderLoadingState(true);
 
   panel.classList.add('show');
-  document.body.classList.add('modal-open');
+  document.body.classList.add(
+    'modal-open'
+  );
 
   updateOrderTotal();
 
@@ -2470,25 +3206,154 @@ async function openOrder(buyId) {
 }
 
 
+function collectCategoryOrderItems() {
+  return Array.from(
+    document.querySelectorAll(
+      '#categoryOrderList .category-order-qty'
+    )
+  ).map(input => {
+    return {
+      itemId:
+        String(
+          input.dataset.itemId || ''
+        ),
+      quantity:
+        Number(
+          input.value || 0
+        )
+    };
+  });
+}
+
+
 function updateOrderTotal() {
   if (!currentBuy) return;
 
-  const qty = Number(document.getElementById('orderQty').value || 0);
-  const total = qty * Number(currentBuy.price || 0);
+  let total = 0;
 
-  document.getElementById('orderTotal').textContent = '$' + formatNumber(total);
+  if (isCategoryGroupBuy(currentBuy)) {
+    document
+      .querySelectorAll(
+        '#categoryOrderList .category-order-qty'
+      )
+      .forEach(input => {
+        const quantity =
+          Number(
+            input.value || 0
+          );
+
+        const price =
+          Number(
+            input.dataset.price || 0
+          );
+
+        total +=
+          quantity * price;
+      });
+  } else {
+    const quantity =
+      Number(
+        document
+          .getElementById(
+            'orderQty'
+          )
+          .value
+        ||
+        0
+      );
+
+    total =
+      quantity
+      *
+      Number(
+        currentBuy.price || 0
+      );
+  }
+
+  document
+    .getElementById(
+      'orderTotal'
+    )
+    .textContent =
+      '$'
+      +
+      formatNumber(total);
 }
 
 
 function changeOrderQuantity(delta) {
   if (!orderDataReady) return;
 
-  const input = document.getElementById('orderQty');
-  let value = Number(input.value || 0);
+  const input =
+    document.getElementById(
+      'orderQty'
+    );
 
-  if (!Number.isInteger(value)) value = 0;
+  let value =
+    Number(
+      input.value || 0
+    );
 
-  value = Math.max(0, Math.min(9999, value + Number(delta || 0)));
+  if (!Number.isInteger(value)) {
+    value = 0;
+  }
+
+  value =
+    Math.max(
+      0,
+      Math.min(
+        9999,
+        value
+        +
+        Number(delta || 0)
+      )
+    );
+
+  input.value = value;
+  updateOrderTotal();
+}
+
+
+function changeCategoryOrderQuantity(
+  itemId,
+  delta
+) {
+  if (!orderDataReady) return;
+
+  const input =
+    Array.from(
+      document.querySelectorAll(
+        '#categoryOrderList .category-order-qty'
+      )
+    )
+      .find(element =>
+        String(element.dataset.itemId)
+        ===
+        String(itemId)
+      );
+
+  if (!input) return;
+
+  let value =
+    Number(
+      input.value || 0
+    );
+
+  if (!Number.isInteger(value)) {
+    value = 0;
+  }
+
+  value =
+    Math.max(
+      0,
+      Math.min(
+        9999,
+        value
+        +
+        Number(delta || 0)
+      )
+    );
+
   input.value = value;
   updateOrderTotal();
 }
@@ -2500,69 +3365,172 @@ async function confirmOrder() {
   }
 
   if (!currentBuy) {
-    alert('目前沒有可儲存的團購');
+    alert(
+      '目前沒有可儲存的團購'
+    );
     return;
   }
 
-  const quantity = Number(document.getElementById('orderQty').value);
-  const proxyNameInput = document.getElementById('proxyOrderName');
-  const proxyName = proxyNameInput ? proxyNameInput.value.trim() : '';
+  const categoryMode =
+    isCategoryGroupBuy(
+      currentBuy
+    );
 
-  if (currentOrderType === 'PROXY' && !proxyName) {
-    alert('代人下單時請先輸入姓名');
-    if (proxyNameInput) proxyNameInput.focus();
+  const items =
+    categoryMode
+      ? collectCategoryOrderItems()
+      : [];
+
+  const quantity =
+    categoryMode
+      ? items.reduce(
+          (sum, row) =>
+            sum
+            +
+            Number(row.quantity || 0),
+          0
+        )
+      : Number(
+          document
+            .getElementById(
+              'orderQty'
+            )
+            .value
+        );
+
+  const proxyNameInput =
+    document.getElementById(
+      'proxyOrderName'
+    );
+
+  const proxyName =
+    proxyNameInput
+      ? proxyNameInput.value.trim()
+      : '';
+
+  if (
+    currentOrderType === 'PROXY'
+    &&
+    !proxyName
+  ) {
+    alert(
+      '代人下單時請先輸入姓名'
+    );
+
+    if (proxyNameInput) {
+      proxyNameInput.focus();
+    }
+
     return;
   }
 
-  if (!Number.isInteger(quantity) || quantity < 0 || quantity > 9999) {
-    alert('請輸入 0～9999 的整數數量');
+  if (
+    !Number.isInteger(quantity)
+    ||
+    quantity < 0
+    ||
+    quantity > 9999
+  ) {
+    alert(
+      '請輸入 0～9999 的整數數量'
+    );
     return;
   }
 
-  const saveButton = document.getElementById('orderSaveButton');
+  const invalidCategoryItem =
+    items.find(row =>
+      !Number.isInteger(row.quantity)
+      ||
+      row.quantity < 0
+      ||
+      row.quantity > 9999
+    );
+
+  if (invalidCategoryItem) {
+    alert(
+      '每個次類別都必須輸入 0～9999 的整數'
+    );
+    return;
+  }
+
+  const saveButton =
+    document.getElementById(
+      'orderSaveButton'
+    );
 
   setOrderLoadingState(true);
 
   if (saveButton) {
-    saveButton.textContent = '儲存中…';
+    saveButton.textContent =
+      '儲存中…';
   }
 
-  const hint = document.getElementById('orderLoadingHint');
+  const hint =
+    document.getElementById(
+      'orderLoadingHint'
+    );
+
   if (hint) {
-    hint.style.display = 'block';
-    hint.textContent = '訂單儲存中，請稍候…';
+    hint.style.display =
+      'block';
+
+    hint.textContent =
+      '訂單儲存中，請稍候…';
   }
 
   try {
-    const result = await adminPost(
-      guestMode
-        ? 'guestSaveOrder'
-        : 'saveOrder',
-      {
-        buyId: currentBuy.buyId,
-        shareToken:
-          guestMode
-            ? currentGuestToken
-            : '',
-        quantity: quantity,
-        lineName:
-          currentUser
-            ? currentUser.displayName
-            : '',
-        orderType: currentOrderType,
-        orderName:
-          currentOrderType === 'PROXY'
-            ? proxyName
-            : ''
-      }
-    );
+    const result =
+      await adminPost(
+        guestMode
+          ? 'guestSaveOrder'
+          : 'saveOrder',
+        {
+          buyId:
+            currentBuy.buyId,
+
+          shareToken:
+            guestMode
+              ? currentGuestToken
+              : '',
+
+          quantity:
+            quantity,
+
+          items:
+            categoryMode
+              ? items
+              : undefined,
+
+          lineName:
+            currentUser
+              ? currentUser.displayName
+              : '',
+
+          orderType:
+            currentOrderType,
+
+          orderName:
+            currentOrderType === 'PROXY'
+              ? proxyName
+              : ''
+        }
+      );
 
     if (!result.success) {
-      throw new Error(result.message || '訂單儲存失敗');
+      throw new Error(
+        result.message
+        ||
+        '訂單儲存失敗'
+      );
     }
 
     closeOrder();
-    alert(result.message || '訂單已儲存');
+
+    alert(
+      result.message
+      ||
+      '訂單已儲存'
+    );
 
     if (guestMode) {
       await loadGuestSharedGroupBuy();
@@ -2573,12 +3541,21 @@ async function confirmOrder() {
   } catch (error) {
     setOrderLoadingState(false);
 
-    const hint = document.getElementById('orderLoadingHint');
-    if (hint) {
-      hint.textContent = '訂單讀取中，請稍候…';
+    const loadingHint =
+      document.getElementById(
+        'orderLoadingHint'
+      );
+
+    if (loadingHint) {
+      loadingHint.textContent =
+        '訂單讀取中，請稍候…';
     }
 
-    alert(error.message || String(error));
+    alert(
+      error.message
+      ||
+      String(error)
+    );
   }
 }
 
@@ -2636,13 +3613,16 @@ function loadAdminList() {
   const box = document.getElementById('adminList');
   box.innerHTML = '正在載入管理資料...';
 
-  window.handleAdminGroupBuys = function(result) {
+  window.handleAdminGroupBuys = async function(result) {
     if (!result || !result.success) {
       box.innerHTML = '<span class="error">管理資料讀取失敗</span>';
       return;
     }
 
-    window.adminGroupBuys = result.data || [];
+    window.adminGroupBuys =
+      await hydrateGroupBuyItems(
+        result.data || []
+      );
 
     canUseGroupDataTools =
       result.isSuperAdmin === true;
@@ -2847,6 +3827,263 @@ function renderAdminList() {
   });
 }
 
+function setAdminProductMode(mode) {
+  adminProductMode =
+    String(mode || 'SINGLE')
+      .trim()
+      .toUpperCase();
+
+  if (
+    adminProductMode !== 'CATEGORY'
+  ) {
+    adminProductMode = 'SINGLE';
+  }
+
+  const singleFields =
+    document.getElementById(
+      'adminSingleProductFields'
+    );
+
+  const categoryFields =
+    document.getElementById(
+      'adminCategoryFields'
+    );
+
+  const singleTab =
+    document.getElementById(
+      'adminSingleModeTab'
+    );
+
+  const categoryTab =
+    document.getElementById(
+      'adminCategoryModeTab'
+    );
+
+  const modeInput =
+    document.getElementById(
+      'adminProductMode'
+    );
+
+  const isCategory =
+    adminProductMode === 'CATEGORY';
+
+  if (singleFields) {
+    singleFields.style.display =
+      isCategory
+        ? 'none'
+        : 'block';
+  }
+
+  if (categoryFields) {
+    categoryFields.style.display =
+      isCategory
+        ? 'block'
+        : 'none';
+  }
+
+  if (singleTab) {
+    singleTab.classList.toggle(
+      'active',
+      !isCategory
+    );
+
+    singleTab.disabled =
+      !isCategory;
+  }
+
+  if (categoryTab) {
+    categoryTab.classList.toggle(
+      'active',
+      isCategory
+    );
+
+    categoryTab.disabled =
+      isCategory;
+  }
+
+  if (modeInput) {
+    modeInput.value =
+      adminProductMode;
+  }
+
+  const list =
+    document.getElementById(
+      'adminCategoryItems'
+    );
+
+  if (
+    isCategory
+    &&
+    list
+    &&
+    !list.children.length
+  ) {
+    addAdminCategoryItem();
+  }
+}
+
+
+function addAdminCategoryItem(item) {
+  item = item || {};
+
+  const list =
+    document.getElementById(
+      'adminCategoryItems'
+    );
+
+  if (!list) return;
+
+  adminCategoryRowSequence += 1;
+
+  const row =
+    document.createElement('div');
+
+  row.className =
+    'category-editor-row';
+
+  row.dataset.rowId =
+    String(adminCategoryRowSequence);
+
+  row.innerHTML = `
+    <input
+      class="admin-category-item-id"
+      type="hidden"
+      value="${escapeHtml(item.itemId || '')}"
+    >
+
+    <div class="category-editor-grid">
+      <div>
+        <label>主類別</label>
+        <input
+          class="admin-main-category"
+          type="text"
+          maxlength="100"
+          placeholder="例如：舒肥雞胸肉"
+          value="${escapeHtml(item.mainCategory || '')}"
+        >
+      </div>
+
+      <div>
+        <label>次類別</label>
+        <input
+          class="admin-sub-category"
+          type="text"
+          maxlength="100"
+          placeholder="例如：原味"
+          value="${escapeHtml(item.subCategory || '')}"
+        >
+      </div>
+
+      <div>
+        <label>單價</label>
+        <input
+          class="admin-category-price"
+          type="number"
+          min="0"
+          step="1"
+          value="${item.price !== undefined ? Number(item.price || 0) : ''}"
+        >
+      </div>
+
+      <div>
+        <label>單位</label>
+        <input
+          class="admin-category-unit"
+          type="text"
+          maxlength="20"
+          placeholder="例如：包"
+          value="${escapeHtml(item.unit || '')}"
+        >
+      </div>
+    </div>
+
+    <button
+      type="button"
+      class="outline category-editor-remove"
+      onclick="removeAdminCategoryItem(this)"
+    >移除此項</button>
+  `;
+
+  list.appendChild(row);
+}
+
+
+function removeAdminCategoryItem(button) {
+  const row =
+    button
+      ? button.closest(
+          '.category-editor-row'
+        )
+      : null;
+
+  if (row) {
+    row.remove();
+  }
+
+  const list =
+    document.getElementById(
+      'adminCategoryItems'
+    );
+
+  if (
+    adminProductMode === 'CATEGORY'
+    &&
+    list
+    &&
+    !list.children.length
+  ) {
+    addAdminCategoryItem();
+  }
+}
+
+
+function collectAdminCategoryItems() {
+  return Array.from(
+    document.querySelectorAll(
+      '#adminCategoryItems .category-editor-row'
+    )
+  ).map((row, index) => {
+    return {
+      itemId:
+        row.querySelector(
+          '.admin-category-item-id'
+        ).value.trim(),
+
+      mainCategory:
+        row.querySelector(
+          '.admin-main-category'
+        ).value.trim(),
+
+      subCategory:
+        row.querySelector(
+          '.admin-sub-category'
+        ).value.trim(),
+
+      optionName:
+        '',
+
+      price:
+        Number(
+          row.querySelector(
+            '.admin-category-price'
+          ).value
+        ),
+
+      unit:
+        row.querySelector(
+          '.admin-category-unit'
+        ).value.trim(),
+
+      enabled:
+        true,
+
+      sortOrder:
+        index + 1
+    };
+  });
+}
+
+
 function openCreateForm() {
   if (!currentGroupSessionToken) {
     alert('請從 LINE 群組的專屬團購入口開啟');
@@ -2854,6 +4091,7 @@ function openCreateForm() {
   }
 
   clearAdminForm();
+  setAdminProductMode('SINGLE');
 
   adminImageData = '';
   adminImageOriginalUrl = '';
@@ -2874,46 +4112,172 @@ function openCreateForm() {
 }
 
 
-function openEditForm(buyId) {
-  const item = window.adminGroupBuys.find(
-    x => String(x.buyId) === String(buyId)
-  );
+async function openEditForm(buyId) {
+  let item =
+    window.adminGroupBuys.find(
+      row =>
+        String(row.buyId)
+        ===
+        String(buyId)
+    );
 
   if (!item) {
-    alert('找不到團購資料');
+    alert(
+      '找不到團購資料'
+    );
     return;
   }
 
-  document.getElementById('adminBuyId').value = item.buyId || '';
-  document.getElementById('adminName').value = item.name || '';
-  document.getElementById('adminDescription').value = item.description || '';
-  document.getElementById('adminPrice').value = item.price || 0;
-  document.getElementById('adminUnit').value = item.unit || '';
-  document.getElementById('adminImageUrl').value = item.imageUrl || '';
+  item =
+    await loadGroupBuyItemsForRow(
+      item
+    );
+
+  clearAdminForm();
+
+  document
+    .getElementById(
+      'adminBuyId'
+    )
+    .value =
+      item.buyId || '';
+
+  document
+    .getElementById(
+      'adminName'
+    )
+    .value =
+      item.name || '';
+
+  document
+    .getElementById(
+      'adminDescription'
+    )
+    .value =
+      item.description || '';
+
+  document
+    .getElementById(
+      'adminPrice'
+    )
+    .value =
+      item.price || 0;
+
+  document
+    .getElementById(
+      'adminUnit'
+    )
+    .value =
+      item.unit || '';
+
+  document
+    .getElementById(
+      'adminImageUrl'
+    )
+    .value =
+      item.imageUrl || '';
+
+  const categoryItems =
+    Array.isArray(item.items)
+      ? item.items
+      : [];
+
+  if (categoryItems.length) {
+    setAdminProductMode(
+      'CATEGORY'
+    );
+
+    const list =
+      document.getElementById(
+        'adminCategoryItems'
+      );
+
+    list.innerHTML = '';
+
+    categoryItems.forEach(
+      categoryItem => {
+        addAdminCategoryItem(
+          categoryItem
+        );
+      }
+    );
+  } else {
+    setAdminProductMode(
+      'SINGLE'
+    );
+  }
 
   adminImageData = '';
-  adminImageOriginalUrl = item.imageUrl || '';
+  adminImageOriginalUrl =
+    item.imageUrl || '';
 
   if (item.imageUrl) {
-    showAdminImagePreview(item.imageUrl);
+    showAdminImagePreview(
+      item.imageUrl
+    );
   } else {
     resetAdminImagePreview();
   }
 
-  document.getElementById('adminStartAt').value = toDatetimeLocal(item.startAt);
-  document.getElementById('adminEndAt').value = toDatetimeLocal(item.endAt);
+  document
+    .getElementById(
+      'adminStartAt'
+    )
+    .value =
+      toDatetimeLocal(
+        item.startAt
+      );
 
-  document.getElementById('adminFormTitle').textContent = '修改團購';
-  document.getElementById('adminStatus').style.display = 'none';
-  document.getElementById('newStatusLabel').style.display = 'none';
+  document
+    .getElementById(
+      'adminEndAt'
+    )
+    .value =
+      toDatetimeLocal(
+        item.endAt
+      );
 
-  const panel = document.getElementById('adminFormPanel');
+  document
+    .getElementById(
+      'adminFormTitle'
+    )
+    .textContent =
+      '修改團購';
+
+  document
+    .getElementById(
+      'adminStatus'
+    )
+    .style.display =
+      'none';
+
+  document
+    .getElementById(
+      'newStatusLabel'
+    )
+    .style.display =
+      'none';
+
+  const panel =
+    document.getElementById(
+      'adminFormPanel'
+    );
+
   panel.classList.add('show');
-  document.body.classList.add('modal-open');
+
+  document.body.classList.add(
+    'modal-open'
+  );
 
   setTimeout(function() {
-    const nameInput = document.getElementById('adminName');
-    if (nameInput) nameInput.focus();
+    const nameInput =
+      document.getElementById(
+        'adminName'
+      );
+
+    if (nameInput) {
+      nameInput.focus();
+    }
   }, 50);
 }
 
@@ -2953,19 +4317,52 @@ function clearAdminForm() {
     'adminImageUrl',
     'adminStartAt',
     'adminEndAt'
-  ].forEach(id => document.getElementById(id).value = '');
+  ].forEach(id => {
+    const element =
+      document.getElementById(id);
 
-  document.getElementById('adminStatus').value = 'PENDING';
+    if (element) {
+      element.value = '';
+    }
+  });
 
-  const fileInput = document.getElementById('adminImageFile');
-  if (fileInput) fileInput.value = '';
+  document
+    .getElementById(
+      'adminStatus'
+    )
+    .value =
+      'PENDING';
+
+  document
+    .getElementById(
+      'adminProductMode'
+    )
+    .value =
+      'SINGLE';
+
+  const categoryList =
+    document.getElementById(
+      'adminCategoryItems'
+    );
+
+  if (categoryList) {
+    categoryList.innerHTML = '';
+  }
+
+  const fileInput =
+    document.getElementById(
+      'adminImageFile'
+    );
+
+  if (fileInput) {
+    fileInput.value = '';
+  }
 
   adminImageData = '';
   adminImageOriginalUrl = '';
 
   resetAdminImagePreview();
 }
-
 
 
 function previewAdminImage(input) {
@@ -3063,65 +4460,251 @@ function resetAdminImagePreview() {
 
 
 async function saveAdminForm() {
-  const buyId = document.getElementById('adminBuyId').value.trim();
+  const buyId =
+    document
+      .getElementById(
+        'adminBuyId'
+      )
+      .value
+      .trim();
+
+  const categoryMode =
+    adminProductMode
+    ===
+    'CATEGORY';
+
+  const categoryItems =
+    categoryMode
+      ? collectAdminCategoryItems()
+      : [];
 
   const payload = {
-    buyId: buyId,
-    name: document.getElementById('adminName').value.trim(),
-    description: document.getElementById('adminDescription').value.trim(),
-    price: Number(document.getElementById('adminPrice').value || 0),
-    unit: document.getElementById('adminUnit').value.trim(),
-    imageUrl: adminImageOriginalUrl || document.getElementById('adminImageUrl').value.trim(),
-    imageData: adminImageData,
-    ownerLineName: currentUser ? currentUser.displayName : '',
-    startAt: document.getElementById('adminStartAt').value,
-    endAt: document.getElementById('adminEndAt').value,
-    status: document.getElementById('adminStatus').value
+    buyId:
+      buyId,
+
+    name:
+      document
+        .getElementById(
+          'adminName'
+        )
+        .value
+        .trim(),
+
+    description:
+      document
+        .getElementById(
+          'adminDescription'
+        )
+        .value
+        .trim(),
+
+    productMode:
+      categoryMode
+        ? 'CATEGORY'
+        : 'SINGLE',
+
+    price:
+      categoryMode
+        ? 0
+        : Number(
+            document
+              .getElementById(
+                'adminPrice'
+              )
+              .value
+            ||
+            0
+          ),
+
+    unit:
+      categoryMode
+        ? ''
+        : document
+            .getElementById(
+              'adminUnit'
+            )
+            .value
+            .trim(),
+
+    items:
+      categoryMode
+        ? categoryItems
+        : (
+            buyId
+              ? []
+              : undefined
+          ),
+
+    imageUrl:
+      adminImageOriginalUrl
+      ||
+      document
+        .getElementById(
+          'adminImageUrl'
+        )
+        .value
+        .trim(),
+
+    imageData:
+      adminImageData,
+
+    ownerLineName:
+      currentUser
+        ? currentUser.displayName
+        : '',
+
+    startAt:
+      document
+        .getElementById(
+          'adminStartAt'
+        )
+        .value,
+
+    endAt:
+      document
+        .getElementById(
+          'adminEndAt'
+        )
+        .value,
+
+    status:
+      document
+        .getElementById(
+          'adminStatus'
+        )
+        .value
   };
 
-  // 驗證先做，避免欄位漏填時畫面被鎖住
   if (!payload.name) {
-    alert('請輸入商品名稱');
+    alert(
+      '請輸入商品名稱'
+    );
     return;
   }
 
-  if (!payload.unit) {
-    alert('請輸入單位');
+  if (!categoryMode && !payload.unit) {
+    alert(
+      '請輸入單位'
+    );
     return;
   }
 
-  const action = buyId
-    ? 'adminUpdateGroupBuy'
-    : 'adminCreateGroupBuy';
+  if (categoryMode) {
+    if (!categoryItems.length) {
+      alert(
+        '請至少新增一筆分類商品'
+      );
+      return;
+    }
+
+    for (
+      let index = 0;
+      index < categoryItems.length;
+      index += 1
+    ) {
+      const row =
+        categoryItems[index];
+
+      if (!row.mainCategory) {
+        alert(
+          '第 '
+          +
+          (index + 1)
+          +
+          ' 筆請輸入主類別'
+        );
+        return;
+      }
+
+      if (!row.subCategory) {
+        alert(
+          '第 '
+          +
+          (index + 1)
+          +
+          ' 筆請輸入次類別'
+        );
+        return;
+      }
+
+      if (
+        !Number.isFinite(row.price)
+        ||
+        row.price < 0
+      ) {
+        alert(
+          '第 '
+          +
+          (index + 1)
+          +
+          ' 筆請輸入正確單價'
+        );
+        return;
+      }
+
+      if (!row.unit) {
+        alert(
+          '第 '
+          +
+          (index + 1)
+          +
+          ' 筆請輸入單位'
+        );
+        return;
+      }
+    }
+  }
+
+  const action =
+    buyId
+      ? 'adminUpdateGroupBuy'
+      : 'adminCreateGroupBuy';
 
   setAdminBusy(
     true,
-    buyId ? '儲存中…' : '建立團購中…',
+    buyId
+      ? '儲存中…'
+      : '建立團購中…',
     '正在寫入 Google Sheet／Google Drive，請勿重複操作。'
   );
 
   try {
-    const result = await adminPost(action, payload);
+    const result =
+      await adminPost(
+        action,
+        payload
+      );
 
-    // 先解除遮罩，再讓使用者看到結果提示
     setAdminBusy(false);
 
     if (!result.success) {
-      alert(result.message || '儲存失敗');
+      alert(
+        result.message
+        ||
+        '儲存失敗'
+      );
       return;
     }
 
-    alert(result.message || '儲存成功');
+    alert(
+      result.message
+      ||
+      '儲存成功'
+    );
 
     closeAdminForm();
 
     const adminPanel =
-      document.getElementById('adminPanel');
+      document.getElementById(
+        'adminPanel'
+      );
 
     if (
       adminPanel
       &&
-      adminPanel.style.display !== 'none'
+      adminPanel.style.display
+      !==
+      'none'
     ) {
       loadAdminList();
     }
@@ -3130,9 +4713,13 @@ async function saveAdminForm() {
     loadClosedGroupBuys();
 
   } catch (error) {
-    // 無論錯誤發生在哪裡，都一定先退掉遮罩
     setAdminBusy(false);
-    alert(error.message || String(error));
+
+    alert(
+      error.message
+      ||
+      String(error)
+    );
   }
 }
 
@@ -3702,3 +5289,5 @@ document.addEventListener('keydown', function(event) {
 
 </body>
 </html>
+
+
