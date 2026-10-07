@@ -995,7 +995,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.19</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.20</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -2038,7 +2038,9 @@ function hydrateGroupBuyItems(items) {
 function renderGroupBuyPriceInfo(item) {
   if (!isCategoryGroupBuy(item)) {
     return `
-      ${renderGroupBuyPriceInfo(item)}
+      <div class="info">
+        單價：$${formatNumber(item.price)} / ${escapeHtml(item.unit)}
+      </div>
     `;
   }
 
@@ -5289,5 +5291,4 @@ document.addEventListener('keydown', function(event) {
 
 </body>
 </html>
-
 
