@@ -654,6 +654,87 @@
       text-overflow: ellipsis;
     }
 
+
+    /* ===== 首頁上方：LINE / 群組 + 團購功能 ===== */
+    .home-toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .home-toolbar .user-box,
+    .home-toolbar #adminEntry {
+      min-width: 0;
+      margin: 0;
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid #e2ece5;
+      background: rgba(255,255,255,.92);
+      box-shadow: 0 4px 14px rgba(35,82,51,.05);
+    }
+
+    .home-toolbar #adminEntry .section-title {
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+
+    .home-toolbar #adminEntry > div:last-child {
+      gap: 7px !important;
+    }
+
+    .home-toolbar #adminEntry button {
+      min-height: 40px;
+      padding: 8px 7px;
+      font-size: 12px;
+      border-radius: 11px;
+    }
+
+    .home-toolbar .user-box {
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    /* 三個首頁頁簽固定吃滿整個寬度，不使用橫向滑動 */
+    .home-tabs {
+      display: grid !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px !important;
+      width: 100%;
+      overflow: visible !important;
+      padding: 0 0 10px !important;
+      margin-bottom: 6px !important;
+    }
+
+    .home-tab {
+      width: 100%;
+      min-width: 0;
+      padding: 10px 4px !important;
+      text-align: center;
+      border-radius: 12px !important;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 390px) {
+      .home-toolbar {
+        gap: 7px;
+      }
+
+      .home-toolbar .user-box,
+      .home-toolbar #adminEntry {
+        padding: 10px 8px;
+      }
+
+      .home-toolbar #adminEntry > div:last-child {
+        grid-template-columns: 1fr !important;
+      }
+
+      .home-tab {
+        font-size: 12px;
+      }
+    }
+
 </style>
 </head>
 
@@ -661,11 +742,21 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.6</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.7</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
-  <div id="userBox" class="user-box">正在確認 LINE 身分...</div>
+  <div class="home-toolbar">
+    <div id="userBox" class="user-box">正在確認 LINE 身分...</div>
+
+    <div id="adminEntry" style="display:none;" class="section">
+      <div class="section-title">開團功能</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <button onclick="openCreateForm()">＋ 我要開團</button>
+        <button class="outline" onclick="openAdminPanel()">開團管理專區</button>
+      </div>
+    </div>
+  </div>
 
   <div id="groupAccessMessage" class="message" style="display:none;">
     <strong id="groupAccessTitle">請從 LINE 群組的團購入口開啟</strong>
@@ -676,14 +767,6 @@
 
   <div id="homePanel">
 
-    <div id="adminEntry" style="display:none;" class="section">
-      <div class="section-title">開團功能</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <button onclick="openCreateForm()">＋ 我要開團</button>
-        <button class="outline" onclick="openAdminPanel()">開團管理專區</button>
-      </div>
-    </div>
-
     <div class="section">
       <div class="home-tabs">
         <button class="home-tab active" data-tab="open" onclick="switchHomeTab('open')">開團中</button>
@@ -692,7 +775,7 @@
       </div>
 
       <div id="openGroupBuySection" class="home-pane active">
-        <div class="section-subtitle">左右滑動查看更多團購</div>
+        <div class="section-subtitle">目前開放中的團購項目</div>
         <div id="openLoading" class="message">正在載入團購資料...</div>
         <div id="openCarousel" class="carousel" style="display:none;"></div>
         <div id="openDots" class="dots" style="display:none;"></div>
