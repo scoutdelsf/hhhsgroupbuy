@@ -822,7 +822,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.14</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.15</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1084,6 +1084,7 @@ let currentBuy = null;
 let orderDataReady = false;
 let currentOrderType = 'SELF';
 let isAdmin = false;
+let canUseGroupDataTools = false;
 
 let adminImageData = '';
 let adminImageOriginalUrl = '';
@@ -1612,6 +1613,19 @@ function checkAdminStatus() {
   const entry = document.getElementById('adminEntry');
   if (entry) entry.style.display = 'block';
 
+  canUseGroupDataTools = false;
+
+  // 資料檢查與修復工具預設隱藏；進入管理專區後，
+  // 再依 myGroupBuys 回傳的 isSuperAdmin 明確決定是否顯示。
+  const debugButton =
+    document.getElementById(
+      'debugGroupBuysButton'
+    );
+
+  if (debugButton) {
+    debugButton.style.display = 'none';
+  }
+
   // isAdmin 保留給後續 Super Admin 審核功能使用。
   window.handleAdminStatus = function(result) {
     isAdmin = !!(
@@ -1622,15 +1636,6 @@ function checkAdminStatus() {
       result.isAdmin
     );
 
-    const debugButton =
-      document.getElementById(
-        'debugGroupBuysButton'
-      );
-
-    if (debugButton) {
-      debugButton.style.display =
-        isAdmin ? 'block' : 'none';
-    }
   };
 
   jsonp(
@@ -1639,6 +1644,10 @@ function checkAdminStatus() {
     { userId: currentUser.userId },
     function() {
       isAdmin = false;
+
+      if (debugButton) {
+        debugButton.style.display = 'none';
+      }
     }
   );
 }
@@ -2564,6 +2573,31 @@ function loadAdminList() {
 
     window.adminGroupBuys = result.data || [];
 
+    canUseGroupDataTools =
+      result.isSuperAdmin === true;
+
+    const debugButton =
+      document.getElementById(
+        'debugGroupBuysButton'
+      );
+
+    const debugBox =
+      document.getElementById(
+        'debugGroupBuysBox'
+      );
+
+    if (debugButton) {
+      debugButton.style.display =
+        canUseGroupDataTools
+          ? 'block'
+          : 'none';
+    }
+
+    if (!canUseGroupDataTools && debugBox) {
+      debugBox.style.display = 'none';
+      debugBox.innerHTML = '';
+    }
+
     const panelTitle =
       document.getElementById('adminPanelTitle');
 
@@ -3035,7 +3069,7 @@ async function saveAdminForm() {
 
 
 async function bindBlankGroupBuysToCurrentGroup() {
-  if (!isAdmin) {
+  if (!canUseGroupDataTools) {
     alert('只有 Super Admin 可以執行資料修復');
     return;
   }
@@ -3095,6 +3129,11 @@ async function bindBlankGroupBuysToCurrentGroup() {
 
 
 function showGroupBuyDebug() {
+  if (!canUseGroupDataTools) {
+    alert('只有 Super Admin 可以檢查群組團購資料');
+    return;
+  }
+
   const box =
     document.getElementById(
       'debugGroupBuysBox'
