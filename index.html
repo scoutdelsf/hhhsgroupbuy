@@ -508,6 +508,12 @@
       overflow-wrap: anywhere;
     }
 
+    .participant-referrer {
+      color: #7a8880;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
     .participant-qty {
       flex: 0 0 auto;
       font-weight: 800;
@@ -822,7 +828,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.15</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.16</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -2070,6 +2076,11 @@ function openParticipants(buyId) {
             <div class="participant-row">
               <div class="participant-name">
                 ${escapeHtml(row.lineName || 'LINE 使用者')}
+                ${
+                  String(row.referrerName || '').trim()
+                    ? `<span class="participant-referrer">（由 ${escapeHtml(String(row.referrerName).trim())} 分享）</span>`
+                    : ''
+                }
               </div>
               <div class="participant-qty">
                 ${Number(row.quantity || 0)} ${escapeHtml(item.unit || '')}
