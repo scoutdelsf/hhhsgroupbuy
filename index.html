@@ -566,6 +566,94 @@
       margin: 0;
     }
 
+
+    .home-tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 0 0 10px;
+      margin-bottom: 4px;
+      scrollbar-width: none;
+    }
+
+    .home-tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .home-tab {
+      flex: 0 0 auto;
+      border: 1px solid #d7e7dc;
+      background: #f5faf6;
+      color: #617369;
+      border-radius: 999px;
+      padding: 9px 15px;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .home-tab.active {
+      background: #246b3f;
+      border-color: #246b3f;
+      color: #fff;
+    }
+
+    .home-pane {
+      display: none;
+    }
+
+    .home-pane.active {
+      display: block;
+    }
+
+    .card-topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .status-bubble {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 27px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .status-bubble.open {
+      background: #e7f6ec;
+      color: #246f43;
+    }
+
+    .status-bubble.closed {
+      background: #eef1ef;
+      color: #647168;
+    }
+
+    .status-bubble.suspended {
+      background: #fff0e8;
+      color: #a45427;
+    }
+
+    .card-owner {
+      min-width: 0;
+      color: #7a8880;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.3;
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
 </style>
 </head>
 
@@ -573,7 +661,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.5</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.6</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -596,20 +684,33 @@
       </div>
     </div>
 
-    <div id="openGroupBuySection" class="section">
-      <div id="openGroupBuySectionTitle" class="section-title">🛒 目前開放團購</div>
-      <div class="section-subtitle">左右滑動查看更多團購</div>
-      <div id="openLoading" class="message">正在載入團購資料...</div>
-      <div id="openCarousel" class="carousel" style="display:none;"></div>
-      <div id="openDots" class="dots" style="display:none;"></div>
-    </div>
+    <div class="section">
+      <div class="home-tabs">
+        <button class="home-tab active" data-tab="open" onclick="switchHomeTab('open')">開團中</button>
+        <button class="home-tab" data-tab="closed" onclick="switchHomeTab('closed')">近期關閉</button>
+        <button class="home-tab" data-tab="suspended" onclick="switchHomeTab('suspended')">停權中</button>
+      </div>
 
-    <div id="closedGroupBuySection" class="section">
-      <div class="section-title">🕘 最近結束的團購</div>
-      <div class="section-subtitle">顯示近三個月已關閉的項目</div>
-      <div id="closedLoading" class="message">正在載入歷史資料...</div>
-      <div id="closedCarousel" class="carousel" style="display:none;"></div>
-      <div id="closedDots" class="dots" style="display:none;"></div>
+      <div id="openGroupBuySection" class="home-pane active">
+        <div class="section-subtitle">左右滑動查看更多團購</div>
+        <div id="openLoading" class="message">正在載入團購資料...</div>
+        <div id="openCarousel" class="carousel" style="display:none;"></div>
+        <div id="openDots" class="dots" style="display:none;"></div>
+      </div>
+
+      <div id="closedGroupBuySection" class="home-pane">
+        <div class="section-subtitle">顯示近三個月已關閉的項目</div>
+        <div id="closedLoading" class="message">正在載入歷史資料...</div>
+        <div id="closedCarousel" class="carousel" style="display:none;"></div>
+        <div id="closedDots" class="dots" style="display:none;"></div>
+      </div>
+
+      <div id="suspendedGroupBuySection" class="home-pane">
+        <div class="section-subtitle">目前暫停中的團購項目</div>
+        <div id="suspendedLoading" class="message">正在載入停權資料...</div>
+        <div id="suspendedCarousel" class="carousel" style="display:none;"></div>
+        <div id="suspendedDots" class="dots" style="display:none;"></div>
+      </div>
     </div>
 
   </div>
@@ -950,6 +1051,7 @@ async function initLiff() {
     checkAdminStatus();
     loadOpenGroupBuys();
     loadClosedGroupBuys();
+    loadSuspendedGroupBuys();
 
   } catch (error) {
     showGroupAccessError(
@@ -1354,6 +1456,30 @@ function checkAdminStatus() {
 }
 
 
+
+function switchHomeTab(tabName) {
+  const paneMap = {
+    open: 'openGroupBuySection',
+    closed: 'closedGroupBuySection',
+    suspended: 'suspendedGroupBuySection'
+  };
+
+  Object.keys(paneMap).forEach(function(key) {
+    const pane = document.getElementById(paneMap[key]);
+    if (pane) {
+      pane.classList.toggle('active', key === tabName);
+    }
+  });
+
+  document.querySelectorAll('.home-tab').forEach(function(button) {
+    button.classList.toggle(
+      'active',
+      button.dataset.tab === tabName
+    );
+  });
+}
+
+
 function loadOpenGroupBuys() {
   window.handleOpenGroupBuys = function(result) {
     if (!result || !result.success) {
@@ -1397,16 +1523,58 @@ function loadClosedGroupBuys() {
 }
 
 
-function renderCarousel(items, carouselId, dotsId, loadingId, openMode) {
+
+function loadSuspendedGroupBuys() {
+  window.handleSuspendedGroupBuys = function(result) {
+    if (!result || !result.success) {
+      showRetry(
+        'suspendedLoading',
+        '停權資料讀取失敗',
+        'loadSuspendedGroupBuys()'
+      );
+      return;
+    }
+
+    renderCarousel(
+      result.data || [],
+      'suspendedCarousel',
+      'suspendedDots',
+      'suspendedLoading',
+      false,
+      'SUSPENDED'
+    );
+  };
+
+  jsonp(
+    'suspendedGroupBuys',
+    'handleSuspendedGroupBuys',
+    { sessionToken: currentGroupSessionToken },
+    function() {
+      showRetry(
+        'suspendedLoading',
+        '無法讀取停權資料',
+        'loadSuspendedGroupBuys()'
+      );
+    }
+  );
+}
+
+
+function renderCarousel(items, carouselId, dotsId, loadingId, openMode, forcedStatus) {
   const loading = document.getElementById(loadingId);
   const carousel = document.getElementById(carouselId);
   const dots = document.getElementById(dotsId);
 
   if (!items.length) {
     loading.style.display = 'block';
-    loading.innerHTML = openMode
-      ? '目前沒有開放中的團購'
-      : '近三個月沒有已關閉的團購';
+    loading.innerHTML =
+      forcedStatus === 'SUSPENDED'
+        ? '目前沒有停權中的團購'
+        : (
+            openMode
+              ? '目前沒有開放中的團購'
+              : '近三個月沒有已關閉的團購'
+          );
 
     carousel.style.display = 'none';
     dots.style.display = 'none';
@@ -1426,9 +1594,29 @@ function renderCarousel(items, carouselId, dotsId, loadingId, openMode) {
 
     slide.innerHTML = `
       <div class="card">
-        <div>
-          <span class="status ${openMode ? 'status-open' : 'status-closed'}">
-            ${openMode ? '開放中' : '已結束'}
+        <div class="card-topline">
+          <span class="status-bubble ${
+            forcedStatus === 'SUSPENDED'
+              ? 'suspended'
+              : (
+                  openMode
+                    ? 'open'
+                    : 'closed'
+                )
+          }">
+            ${
+              forcedStatus === 'SUSPENDED'
+                ? '停權中'
+                : (
+                    openMode
+                      ? '開團中'
+                      : '已關團'
+                  )
+            }
+          </span>
+
+          <span class="card-owner">
+            開團者：${escapeHtml(item.ownerLineName || '未提供')}
           </span>
         </div>
 
@@ -1437,10 +1625,6 @@ function renderCarousel(items, carouselId, dotsId, loadingId, openMode) {
           : ''}
 
         <div class="product-name">${escapeHtml(item.name)}</div>
-
-        ${item.ownerLineName
-          ? `<div class="muted" style="margin-top:6px;">開團主：${escapeHtml(item.ownerLineName)}</div>`
-          : ''}
 
         ${item.description
           ? `<div class="description">${escapeHtml(item.description)}</div>`
