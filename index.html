@@ -750,6 +750,43 @@
       font-weight: 800;
     }
 
+
+    .order-mode-wrap {
+      margin-top: 12px;
+    }
+
+    .order-mode-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 4px;
+      border-radius: 14px;
+      background: #f1f5f2;
+    }
+
+    .order-mode-tab {
+      padding: 9px 8px;
+      border-radius: 10px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 800;
+      color: #819087;
+      background: transparent;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    .order-mode-tab.active {
+      background: #ffffff;
+      color: #246b3f;
+      box-shadow: 0 2px 8px rgba(32, 78, 49, .08);
+    }
+
+    .order-mode-switch {
+      width: 100%;
+      margin-top: 8px;
+    }
+
 </style>
 </head>
 
@@ -757,7 +794,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.10</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.11</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -834,8 +871,15 @@
           <span id="orderSummaryUnit"></span>
         </div>
 
-        <div class="order-type-row">
-          <button id="orderTypeToggleButton" type="button" class="outline" onclick="toggleOrderType()">代人下單</button>
+        <div class="order-mode-wrap">
+          <div class="order-mode-tabs" aria-label="下單方式">
+            <div id="orderModeSelfTab" class="order-mode-tab active">本人下單</div>
+            <div id="orderModeProxyTab" class="order-mode-tab">代人下單</div>
+          </div>
+
+          <button id="orderTypeToggleButton" type="button" class="outline order-mode-switch" onclick="toggleOrderType()">
+            改為代人下單
+          </button>
         </div>
 
         <div id="proxyNameWrap" style="display:none;">
@@ -2084,21 +2128,48 @@ function refreshOrderTypeUI() {
       'orderTypeToggleButton'
     );
 
+  const selfTab =
+    document.getElementById(
+      'orderModeSelfTab'
+    );
+
+  const proxyTab =
+    document.getElementById(
+      'orderModeProxyTab'
+    );
+
   const proxyWrap =
     document.getElementById(
       'proxyNameWrap'
     );
 
+  const isProxy =
+    currentOrderType === 'PROXY';
+
   if (toggleButton) {
     toggleButton.textContent =
-      currentOrderType === 'PROXY'
-        ? '本人下單'
-        : '代人下單';
+      isProxy
+        ? '改為本人下單'
+        : '改為代人下單';
+  }
+
+  if (selfTab) {
+    selfTab.classList.toggle(
+      'active',
+      !isProxy
+    );
+  }
+
+  if (proxyTab) {
+    proxyTab.classList.toggle(
+      'active',
+      isProxy
+    );
   }
 
   if (proxyWrap) {
     proxyWrap.style.display =
-      currentOrderType === 'PROXY'
+      isProxy
         ? 'block'
         : 'none';
   }
