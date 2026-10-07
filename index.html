@@ -757,7 +757,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.8</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.10</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -835,8 +835,7 @@
         </div>
 
         <div class="order-type-row">
-          <button id="orderTypeSelfButton" type="button" class="outline active" onclick="setOrderType('SELF')">本人下單</button>
-          <button id="orderTypeProxyButton" type="button" class="outline" onclick="setOrderType('PROXY')">代人下單</button>
+          <button id="orderTypeToggleButton" type="button" class="outline" onclick="toggleOrderType()">代人下單</button>
         </div>
 
         <div id="proxyNameWrap" style="display:none;">
@@ -1074,8 +1073,22 @@ async function initLiff() {
       </div>
     `;
 
-    // 先同步 Users
-    syncCurrentUser();
+    // 先完成 Users 同步，再進行群組驗證或外部分享。
+    // syncUser 與其他 POST 共用同一個隱藏 iframe，
+    // 若不等待完成，後續 POST 可能覆蓋前一個請求。
+    const syncResult =
+      await syncCurrentUser();
+
+    if (
+      !syncResult
+      ||
+      !syncResult.success
+    ) {
+      console.warn(
+        'Users 尚未同步完成，仍繼續載入系統',
+        syncResult
+      );
+    }
 
     // 官方規格：LIFF URL 的自訂參數要等 liff.init() 完成後再讀
     const urlParams =
@@ -1244,7 +1257,7 @@ async function loadGuestSharedGroupBuy() {
 
     const proxyButton =
       document.getElementById(
-        'orderTypeProxyButton'
+        'orderTypeToggleButton'
       );
 
     const proxyWrap =
@@ -2066,25 +2079,36 @@ function handleParticipantsBackdrop(event) {
 
 
 function refreshOrderTypeUI() {
-  const selfButton = document.getElementById('orderTypeSelfButton');
-  const proxyButton = document.getElementById('orderTypeProxyButton');
-  const proxyWrap = document.getElementById('proxyNameWrap');
+  const toggleButton =
+    document.getElementById(
+      'orderTypeToggleButton'
+    );
 
-  if (selfButton) {
-    selfButton.classList.toggle('active', currentOrderType === 'SELF');
-  }
+  const proxyWrap =
+    document.getElementById(
+      'proxyNameWrap'
+    );
 
-  if (proxyButton) {
-    proxyButton.classList.toggle('active', currentOrderType === 'PROXY');
+  if (toggleButton) {
+    toggleButton.textContent =
+      currentOrderType === 'PROXY'
+        ? '本人下單'
+        : '代人下單';
   }
 
   if (proxyWrap) {
-    proxyWrap.style.display = currentOrderType === 'PROXY' ? 'block' : 'none';
+    proxyWrap.style.display =
+      currentOrderType === 'PROXY'
+        ? 'block'
+        : 'none';
   }
 }
 
-async function setOrderType(type) {
-  if (!orderDataReady) return;
+
+async function toggleOrderType() {
+  if (!orderDataReady) {
+    return;
+  }
 
   if (guestMode) {
     currentOrderType = 'SELF';
@@ -2092,21 +2116,53 @@ async function setOrderType(type) {
     return;
   }
 
-  currentOrderType = String(type || 'SELF').toUpperCase();
-  refreshOrderTypeUI();
-
-  const input = document.getElementById('orderQty');
-  if (input) input.value = 0;
-  updateOrderTotal();
+  const input =
+    document.getElementById(
+      'orderQty'
+    );
 
   if (currentOrderType === 'SELF') {
-    await loadSelectedOrderQuantity();
-  } else {
-    const nameInput = document.getElementById('proxyOrderName');
+    currentOrderType = 'PROXY';
+
+    if (input) {
+      input.value = 0;
+    }
+
+    updateOrderTotal();
+    refreshOrderTypeUI();
+
+    const nameInput =
+      document.getElementById(
+        'proxyOrderName'
+      );
+
     if (nameInput) {
       nameInput.focus();
     }
+
+    return;
   }
+
+  currentOrderType = 'SELF';
+
+  const proxyNameInput =
+    document.getElementById(
+      'proxyOrderName'
+    );
+
+  if (proxyNameInput) {
+    proxyNameInput.value = '';
+  }
+
+  refreshOrderTypeUI();
+
+  if (input) {
+    input.value = 0;
+  }
+
+  updateOrderTotal();
+
+  await loadSelectedOrderQuantity();
 }
 
 async function loadSelectedOrderQuantity() {
@@ -2165,8 +2221,7 @@ function setOrderLoadingState(isLoading) {
     document.getElementById('orderPlusButton'),
     document.getElementById('orderQty'),
     document.getElementById('orderSaveButton'),
-    document.getElementById('orderTypeSelfButton'),
-    document.getElementById('orderTypeProxyButton'),
+    document.getElementById('orderTypeToggleButton'),
     document.getElementById('proxyOrderName')
   ];
 
@@ -3240,96 +3295,59 @@ window.addEventListener('message', function(event) {
 
 
 
-function syncCurrentUser() {
-  if (!currentUser) return;
-
-  const idToken = liff.getIDToken();
-
-  if (!idToken) {
-    console.warn('Users 同步失敗：無法取得 LINE ID Token');
-    return;
+async function syncCurrentUser() {
+  if (!currentUser) {
+    return {
+      success: false,
+      message: '尚未取得 LINE 使用者資料'
+    };
   }
 
-  const requestId =
-    'USER_'
-    +
-    Date.now()
-    +
-    '_'
-    +
-    Math.random()
-      .toString(36)
-      .slice(2);
+  try {
+    const result =
+      await adminPost(
+        'syncUser',
+        {
+          lineName:
+            currentUser.displayName || '',
+          displayName:
+            currentUser.displayName || ''
+        }
+      );
 
-  const form =
-    document.createElement('form');
-
-  form.method = 'POST';
-  form.action = API_URL;
-  form.target = 'gasPostFrame';
-  form.style.display = 'none';
-
-  const payload = {
-    lineName:
-      currentUser.displayName || '',
-    displayName:
-      currentUser.displayName || ''
-  };
-
-  const fields = {
-    action: 'syncUser',
-    idToken: idToken,
-    requestId: requestId,
-    parentOrigin: window.location.origin,
-    payload:
-      JSON.stringify(payload)
-  };
-
-  Object.keys(fields)
-    .forEach(function(name) {
-      const input =
-        document.createElement('input');
-
-      input.type = 'hidden';
-      input.name = name;
-      input.value = fields[name];
-
-      form.appendChild(input);
-    });
-
-  document.body.appendChild(form);
-
-  pendingAdminRequests[requestId] = {
-    timeout: setTimeout(function() {
-      delete pendingAdminRequests[requestId];
-      console.warn('Users 同步逾時');
-    }, 15000),
-
-    resolve: function(result) {
-      if (result && result.success) {
-        console.log('Users 同步成功', result);
-      } else {
-        console.warn(
-          'Users 同步失敗',
-          result && result.message
-            ? result.message
-            : result
-        );
-      }
-    },
-
-    reject: function(error) {
-      console.warn('Users 同步失敗', error);
+    if (
+      !result
+      ||
+      !result.success
+    ) {
+      throw new Error(
+        result && result.message
+          ? result.message
+          : 'Users 同步失敗'
+      );
     }
-  };
 
-  // Users 同步不顯示儲存遮罩，
-  // 避免使用者一進首頁就被阻擋。
-  form.submit();
+    console.log(
+      'Users 同步成功',
+      result
+    );
 
-  setTimeout(function() {
-    form.remove();
-  }, 1500);
+    return result;
+
+  } catch (error) {
+    console.warn(
+      'Users 同步失敗',
+      error
+    );
+
+    return {
+      success: false,
+      message:
+        error && error.message
+          ? error.message
+          : String(error)
+    };
+  }
 }
 
 /* =========================
