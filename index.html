@@ -735,6 +735,21 @@
       }
     }
 
+
+    .my-host-stats {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #edf2ee;
+      color: #7a8880;
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .my-host-stats strong {
+      color: #56675d;
+      font-weight: 800;
+    }
+
 </style>
 </head>
 
@@ -742,7 +757,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.7</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.8</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -750,7 +765,6 @@
     <div id="userBox" class="user-box">正在確認 LINE 身分...</div>
 
     <div id="adminEntry" style="display:none;" class="section">
-      <div class="section-title">開團功能</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <button onclick="openCreateForm()">＋ 我要開團</button>
         <button class="outline" onclick="openAdminPanel()">開團管理專區</button>
@@ -1004,6 +1018,7 @@ let adminImageData = '';
 let adminImageOriginalUrl = '';
 
 window.currentGroupBuys = [];
+window.currentClosedGroupBuys = [];
 window.adminGroupBuys = [];
 
 const pendingAdminRequests = {};
@@ -1128,6 +1143,11 @@ async function initLiff() {
     userBox.innerHTML += `
       <div style="margin-top:8px;" class="muted">
         群組：<strong>${escapeHtml(currentGroupName || 'LINE 群組')}</strong>
+      </div>
+
+      <div id="myHostStats" class="my-host-stats">
+        <div>我的主揪開團中：<strong>--</strong></div>
+        <div>我的主揪已結案：<strong>--</strong></div>
       </div>
     `;
 
@@ -1563,6 +1583,59 @@ function switchHomeTab(tabName) {
 }
 
 
+
+function refreshMyHostStats() {
+  const box =
+    document.getElementById(
+      'myHostStats'
+    );
+
+  if (!box) return;
+
+  const myUserId =
+    currentUser
+    &&
+    currentUser.userId
+      ? String(currentUser.userId)
+      : '';
+
+  if (!myUserId) {
+    box.innerHTML = `
+      <div>我的主揪開團中：<strong>--</strong></div>
+      <div>我的主揪已結案：<strong>--</strong></div>
+    `;
+    return;
+  }
+
+  const openCount =
+    (window.currentGroupBuys || [])
+      .filter(item =>
+        String(
+          item.ownerUserId || ''
+        ).trim()
+        ===
+        myUserId.trim()
+      )
+      .length;
+
+  const closedCount =
+    (window.currentClosedGroupBuys || [])
+      .filter(item =>
+        String(
+          item.ownerUserId || ''
+        ).trim()
+        ===
+        myUserId.trim()
+      )
+      .length;
+
+  box.innerHTML = `
+    <div>我的主揪開團中：<strong>${openCount}</strong></div>
+    <div>我的主揪已結案：<strong>${closedCount}</strong></div>
+  `;
+}
+
+
 function loadOpenGroupBuys() {
   window.handleOpenGroupBuys = function(result) {
     if (!result || !result.success) {
@@ -1571,6 +1644,7 @@ function loadOpenGroupBuys() {
     }
 
     window.currentGroupBuys = result.data || [];
+    refreshMyHostStats();
     renderCarousel(window.currentGroupBuys, 'openCarousel', 'openDots', 'openLoading', true);
   };
 
@@ -1592,7 +1666,9 @@ function loadClosedGroupBuys() {
       return;
     }
 
-    renderCarousel(result.data || [], 'closedCarousel', 'closedDots', 'closedLoading', false);
+    window.currentClosedGroupBuys = result.data || [];
+    refreshMyHostStats();
+    renderCarousel(window.currentClosedGroupBuys, 'closedCarousel', 'closedDots', 'closedLoading', false);
   };
 
   jsonp(
