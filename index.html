@@ -888,6 +888,18 @@
       margin-top: 9px;
     }
 
+    .category-editor-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+      margin-top: 10px;
+    }
+
+    .category-editor-actions button {
+      width: 100%;
+      margin: 0;
+    }
+
     .category-order-group {
       overflow: hidden;
       border: 1px solid #d7e7dc;
@@ -995,7 +1007,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.20</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.21</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1172,9 +1184,12 @@
 
         <div id="adminCategoryFields" style="display:none;">
           <label style="margin-top:16px;">分類商品</label>
-          <div class="muted">每一列代表一個可訂購的次類別；相同主類別可重複填寫。</div>
+          <div class="muted">新增次類別會沿用上一筆的主類別、單價與單位。</div>
           <div id="adminCategoryItems" class="category-editor-list"></div>
-          <button type="button" class="outline" style="width:100%;margin-top:10px;" onclick="addAdminCategoryItem()">＋ 新增次類別</button>
+          <div class="category-editor-actions">
+            <button type="button" class="outline" onclick="addAdminMainCategory()">＋ 新增主類別</button>
+            <button type="button" class="outline" onclick="addAdminSubCategory()">＋ 新增次類別</button>
+          </div>
         </div>
 
         <label>商品圖片</label>
@@ -4010,6 +4025,100 @@ function addAdminCategoryItem(item) {
 }
 
 
+function addAdminMainCategory() {
+  addAdminCategoryItem({});
+
+  const rows =
+    document.querySelectorAll(
+      '#adminCategoryItems .category-editor-row'
+    );
+
+  const lastRow =
+    rows.length
+      ? rows[rows.length - 1]
+      : null;
+
+  const input =
+    lastRow
+      ? lastRow.querySelector(
+          '.admin-main-category'
+        )
+      : null;
+
+  if (input) {
+    input.focus();
+  }
+}
+
+
+function addAdminSubCategory() {
+  const rows =
+    document.querySelectorAll(
+      '#adminCategoryItems .category-editor-row'
+    );
+
+  if (!rows.length) {
+    addAdminMainCategory();
+    return;
+  }
+
+  const previousRow =
+    rows[rows.length - 1];
+
+  const mainCategory =
+    previousRow.querySelector(
+      '.admin-main-category'
+    ).value.trim();
+
+  const priceValue =
+    previousRow.querySelector(
+      '.admin-category-price'
+    ).value;
+
+  const unit =
+    previousRow.querySelector(
+      '.admin-category-unit'
+    ).value.trim();
+
+  const nextItem = {
+    mainCategory:
+      mainCategory,
+    unit:
+      unit
+  };
+
+  if (priceValue !== '') {
+    nextItem.price =
+      Number(priceValue);
+  }
+
+  addAdminCategoryItem(
+    nextItem
+  );
+
+  const updatedRows =
+    document.querySelectorAll(
+      '#adminCategoryItems .category-editor-row'
+    );
+
+  const newRow =
+    updatedRows[
+      updatedRows.length - 1
+    ];
+
+  const input =
+    newRow
+      ? newRow.querySelector(
+          '.admin-sub-category'
+        )
+      : null;
+
+  if (input) {
+    input.focus();
+  }
+}
+
+
 function removeAdminCategoryItem(button) {
   const row =
     button
@@ -5291,4 +5400,3 @@ document.addEventListener('keydown', function(event) {
 
 </body>
 </html>
-
