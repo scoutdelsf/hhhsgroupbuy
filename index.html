@@ -964,11 +964,35 @@
 
     .participant-item-lines {
       display: grid;
-      gap: 2px;
+      gap: 4px;
       margin-top: 5px;
-      color: #6f7f75;
+      color: #26332b;
       font-size: 12px;
       font-weight: 500;
+    }
+
+    .participant-item-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: baseline;
+    }
+
+    .participant-item-subtotal,
+    .participant-total-amount {
+      color: #26332b;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .participant-item-line.single-subtotal {
+      justify-content: flex-end;
+    }
+
+    .participant-total-amount {
+      margin-top: 5px;
+      text-align: right;
     }
 
     @media (max-width: 380px) {
@@ -1007,7 +1031,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.23</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.25</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -2530,25 +2554,60 @@ function openParticipants(buyId) {
                 ? row.items
                 : [];
 
+            const participantTotalAmount =
+              Number(
+                row.totalAmount || 0
+              );
+
             const itemDetails =
               orderItemLines.length
                 ? `
                     <div class="participant-item-lines">
                       ${orderItemLines
-                        .map(orderItem => `
-                          <div>
-                            ${escapeHtml(orderItem.mainCategory || '')}
-                            ／
-                            ${escapeHtml(orderItem.subCategory || '')}
-                            ${orderItem.optionName ? '／' + escapeHtml(orderItem.optionName) : ''}
-                            × ${Number(orderItem.quantity || 0)}
-                            ${escapeHtml(orderItem.unit || '')}
-                          </div>
-                        `)
+                        .map(orderItem => {
+                          const lineTotal =
+                            orderItem.lineTotal !== undefined
+                              ? Number(orderItem.lineTotal || 0)
+                              : (
+                                  Number(orderItem.quantity || 0)
+                                  *
+                                  Number(orderItem.unitPrice || 0)
+                                );
+
+                          return `
+                            <div class="participant-item-line">
+                              <span>
+                                ${escapeHtml(orderItem.mainCategory || '')}
+                                ／
+                                ${escapeHtml(orderItem.subCategory || '')}
+                                ${orderItem.optionName ? '／' + escapeHtml(orderItem.optionName) : ''}
+                                × ${Number(orderItem.quantity || 0)}
+                                ${escapeHtml(orderItem.unit || '')}
+                              </span>
+                              <span class="participant-item-subtotal">
+                                小計：$${formatNumber(lineTotal)}
+                              </span>
+                            </div>
+                          `;
+                        })
                         .join('')}
                     </div>
                   `
-                : '';
+                : `
+                    <div class="participant-item-lines">
+                      <div class="participant-item-line single-subtotal">
+                        <span class="participant-item-subtotal">
+                          小計：$${formatNumber(participantTotalAmount)}
+                        </span>
+                      </div>
+                    </div>
+                  `;
+
+            const totalAmountDetails = `
+              <div class="participant-total-amount">
+                總計：$${formatNumber(participantTotalAmount)}
+              </div>
+            `;
 
             return `
               <div class="participant-row">
@@ -2558,6 +2617,7 @@ function openParticipants(buyId) {
                     ${sources.join(' ')}
                   </div>
                   ${itemDetails}
+                  ${totalAmountDetails}
                 </div>
                 <div class="participant-qty">
                   ${Number(row.quantity || 0)}
@@ -3803,6 +3863,12 @@ function renderAdminList() {
 
       <div class="admin-actions">
         ${
+          isOwner
+            ? `<button class="outline" onclick="openCloneForm('${escapeJs(item.buyId)}')">複製開新團</button>`
+            : ''
+        }
+
+        ${
           canOwnerEdit
             ? `<button class="outline" onclick="openEditForm('${escapeJs(item.buyId)}')">修改</button>`
             : ''
@@ -4219,6 +4285,169 @@ function openCreateForm() {
   setTimeout(function() {
     const nameInput = document.getElementById('adminName');
     if (nameInput) nameInput.focus();
+  }, 50);
+}
+
+
+async function openCloneForm(buyId) {
+  let item =
+    window.adminGroupBuys.find(
+      row =>
+        String(row.buyId)
+        ===
+        String(buyId)
+    );
+
+  if (!item) {
+    alert(
+      '找不到團購資料'
+    );
+    return;
+  }
+
+  item =
+    await loadGroupBuyItemsForRow(
+      item
+    );
+
+  clearAdminForm();
+
+  document
+    .getElementById(
+      'adminName'
+    )
+    .value =
+      item.name || '';
+
+  document
+    .getElementById(
+      'adminDescription'
+    )
+    .value =
+      item.description || '';
+
+  document
+    .getElementById(
+      'adminPrice'
+    )
+    .value =
+      item.price || 0;
+
+  document
+    .getElementById(
+      'adminUnit'
+    )
+    .value =
+      item.unit || '';
+
+  document
+    .getElementById(
+      'adminImageUrl'
+    )
+    .value =
+      item.imageUrl || '';
+
+  const categoryItems =
+    Array.isArray(item.items)
+      ? item.items
+      : [];
+
+  if (categoryItems.length) {
+    setAdminProductMode(
+      'CATEGORY'
+    );
+
+    const list =
+      document.getElementById(
+        'adminCategoryItems'
+      );
+
+    list.innerHTML = '';
+
+    categoryItems.forEach(
+      categoryItem => {
+        addAdminCategoryItem({
+          itemId:
+            '',
+          mainCategory:
+            categoryItem.mainCategory || '',
+          subCategory:
+            categoryItem.subCategory || '',
+          optionName:
+            categoryItem.optionName || '',
+          price:
+            Number(categoryItem.price || 0),
+          unit:
+            categoryItem.unit || ''
+        });
+      }
+    );
+  } else {
+    setAdminProductMode(
+      'SINGLE'
+    );
+  }
+
+  adminImageData = '';
+  adminImageOriginalUrl =
+    item.imageUrl || '';
+
+  if (item.imageUrl) {
+    showAdminImagePreview(
+      item.imageUrl
+    );
+  } else {
+    resetAdminImagePreview();
+  }
+
+  document
+    .getElementById(
+      'adminFormTitle'
+    )
+    .textContent =
+      '複製開新團';
+
+  document
+    .getElementById(
+      'adminStatus'
+    )
+    .value =
+      'PENDING';
+
+  document
+    .getElementById(
+      'adminStatus'
+    )
+    .style.display =
+      'block';
+
+  document
+    .getElementById(
+      'newStatusLabel'
+    )
+    .style.display =
+      'block';
+
+  const panel =
+    document.getElementById(
+      'adminFormPanel'
+    );
+
+  panel.classList.add('show');
+
+  document.body.classList.add(
+    'modal-open'
+  );
+
+  setTimeout(function() {
+    const startInput =
+      document.getElementById(
+        'adminStartAt'
+      );
+
+    if (startInput) {
+      startInput.focus();
+    }
   }, 50);
 }
 
