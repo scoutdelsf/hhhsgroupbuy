@@ -1007,7 +1007,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.22</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.23</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1161,7 +1161,7 @@
       <div class="admin-form-modal-body">
         <input type="hidden" id="adminBuyId">
 
-        <label id="adminNameLabel">商品名稱</label>
+        <label>商品名稱</label>
         <input id="adminName" type="text" placeholder="請輸入商品名稱">
 
         <label>商品說明</label>
@@ -3881,16 +3881,6 @@ function setAdminProductMode(mode) {
       'adminProductMode'
     );
 
-  const nameLabel =
-    document.getElementById(
-      'adminNameLabel'
-    );
-
-  const nameInput =
-    document.getElementById(
-      'adminName'
-    );
-
   const isCategory =
     adminProductMode === 'CATEGORY';
 
@@ -3931,20 +3921,6 @@ function setAdminProductMode(mode) {
   if (modeInput) {
     modeInput.value =
       adminProductMode;
-  }
-
-  if (nameLabel) {
-    nameLabel.textContent =
-      isCategory
-        ? '團購顯示名稱（可留空）'
-        : '商品名稱';
-  }
-
-  if (nameInput) {
-    nameInput.placeholder =
-      isCategory
-        ? '留空會使用第一個主類別'
-        : '請輸入商品名稱';
   }
 
   const list =
@@ -4710,18 +4686,7 @@ async function saveAdminForm() {
         .value
   };
 
-  if (
-    categoryMode
-    &&
-    !payload.name
-    &&
-    categoryItems.length
-  ) {
-    payload.name =
-      categoryItems[0].mainCategory;
-  }
-
-  if (!categoryMode && !payload.name) {
+  if (!payload.name) {
     alert(
       '請輸入商品名稱'
     );
