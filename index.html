@@ -471,13 +471,14 @@
 
     .participants-summary {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
       margin-bottom: 14px;
     }
 
     .participants-summary-box {
-      padding: 12px;
+      min-width: 0;
+      padding: 12px 6px;
       border-radius: 14px;
       background: #f3faf5;
       text-align: center;
@@ -487,6 +488,11 @@
       font-size: 22px;
       font-weight: 800;
       color: var(--gb-green-dark);
+    }
+
+    .participants-summary-number.amount {
+      font-size: 18px;
+      overflow-wrap: anywhere;
     }
 
     .participants-list {
@@ -1031,7 +1037,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.25</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.26</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1278,6 +1284,10 @@
         <div class="participants-summary-box">
           <div id="participantsTotalQuantity" class="participants-summary-number">0</div>
           <div class="muted">總數量</div>
+        </div>
+        <div class="participants-summary-box">
+          <div id="participantsTotalAmount" class="participants-summary-number amount">$0</div>
+          <div class="muted">總金額</div>
         </div>
       </div>
 
@@ -2429,11 +2439,17 @@ function openParticipants(buyId) {
       'participantsTotalQuantity'
     );
 
+  const totalAmount =
+    document.getElementById(
+      'participantsTotalAmount'
+    );
+
   title.textContent =
     item.name || '團購品項';
 
   peopleCount.textContent = '0';
   totalQuantity.textContent = '0';
+  totalAmount.textContent = '$0';
 
   loading.style.display = 'block';
   loading.textContent =
@@ -2475,6 +2491,15 @@ function openParticipants(buyId) {
         String(
           Number(
             result.totalQuantity || 0
+          )
+        );
+
+      totalAmount.textContent =
+        '$'
+        +
+        formatNumber(
+          Number(
+            result.totalAmount || 0
           )
         );
 
