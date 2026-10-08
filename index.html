@@ -471,7 +471,7 @@
 
     .participants-summary {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: minmax(0, .8fr) minmax(0, .8fr) minmax(0, 1.4fr);
       gap: 8px;
       margin-bottom: 14px;
     }
@@ -491,8 +491,74 @@
     }
 
     .participants-summary-number.amount {
-      font-size: 18px;
+      font-size: clamp(19px, 6vw, 22px);
       overflow-wrap: anywhere;
+    }
+
+    .admin-panel-heading {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .admin-role-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: #eef8f1;
+      color: #246b3f;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .admin-panel-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+      margin-bottom: 12px;
+    }
+
+    .admin-panel-actions button {
+      width: 100%;
+      margin: 0;
+    }
+
+    .admin-view-tabs {
+      display: none;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      margin-bottom: 12px;
+      padding: 4px;
+      border-radius: 13px;
+      background: #f1f5f2;
+    }
+
+    .admin-view-tabs.show {
+      display: grid;
+    }
+
+    .admin-view-tab {
+      min-width: 0;
+      padding: 9px 4px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: #617369;
+      font-size: 12px;
+      box-shadow: none;
+    }
+
+    .admin-view-tab.active,
+    .admin-view-tab:disabled {
+      background: #fff;
+      color: #246b3f;
+      opacity: 1;
+      box-shadow: 0 2px 8px rgba(32, 78, 49, .08);
     }
 
     .participants-list {
@@ -1037,17 +1103,20 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.26</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.27</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
-  <div class="home-toolbar">
+  <div id="homeToolbar" class="home-toolbar">
     <div id="userBox" class="user-box">正在確認 LINE 身分...</div>
 
     <div id="adminEntry" style="display:none;" class="section">
       <div class="toolbar-actions" style="display:grid;grid-template-columns:1fr;gap:10px;">
-        <button onclick="openCreateForm()">＋ 我要開團</button>
-        <button class="outline" onclick="openAdminPanel()">開團管理專區</button>
+        <button onclick="openAdminPanel()">開團／團主管理區</button>
+      </div>
+      <div id="myHostStats" class="my-host-stats">
+        <div>我的主揪開團中：<strong>--</strong></div>
+        <div>我的主揪已結案：<strong>--</strong></div>
       </div>
     </div>
   </div>
@@ -1163,21 +1232,23 @@
 
 
   <div id="adminPanel" style="display:none;">
-    <div class="section-title" id="adminPanelTitle">我的開團管理</div>
+    <div class="admin-panel-heading">
+      <div class="section-title" id="adminPanelTitle" style="margin:0;">開團／團主管理區</div>
+      <div id="adminRoleBadge" class="admin-role-badge">團購主</div>
+    </div>
 
-    <div class="card">
-      <button onclick="openCreateForm()">＋ 新增團購</button>
+    <div class="admin-panel-actions">
+      <button onclick="openCreateForm()">＋ 建立新團</button>
       <button class="secondary" onclick="closeAdminPanel()">返回首頁</button>
     </div>
 
-    <div id="adminList" class="message">正在載入管理資料...</div>
-    <div id="debugGroupBuysButton" style="display:none; margin-top:12px;">
-      <button class="outline" onclick="showGroupBuyDebug()">檢查群組團購資料</button>
-      <button id="bindBlankGroupBuysButton" style="margin-top:8px;" onclick="bindBlankGroupBuysToCurrentGroup()">
-        將空白團購綁定到目前群組
-      </button>
+    <div id="adminViewTabs" class="admin-view-tabs">
+      <button id="adminViewMine" class="admin-view-tab active" type="button" onclick="setAdminManagementView('mine')">我的團購</button>
+      <button id="adminViewPending" class="admin-view-tab" type="button" onclick="setAdminManagementView('pending')">待審核</button>
+      <button id="adminViewAll" class="admin-view-tab" type="button" onclick="setAdminManagementView('all')">全部團購</button>
     </div>
-    <div id="debugGroupBuysBox" class="message" style="display:none; margin-top:10px;"></div>
+
+    <div id="adminList" class="message">正在載入管理資料...</div>
   </div>
 
 
@@ -1334,6 +1405,9 @@ let adminProductMode = 'SINGLE';
 let adminCategoryRowSequence = 0;
 let isAdmin = false;
 let canUseGroupDataTools = false;
+let currentManagementRole = 'GROUP_BUY_ADMIN';
+let canManageCurrentGroup = false;
+let currentAdminView = 'mine';
 
 let adminImageData = '';
 let adminImageOriginalUrl = '';
@@ -1480,10 +1554,6 @@ async function initLiff() {
         群組：<strong>${escapeHtml(currentGroupName || 'LINE 群組')}</strong>
       </div>
 
-      <div id="myHostStats" class="my-host-stats">
-        <div>我的主揪開團中：<strong>--</strong></div>
-        <div>我的主揪已結案：<strong>--</strong></div>
-      </div>
     `;
 
     checkAdminStatus();
@@ -1872,43 +1942,11 @@ function checkAdminStatus() {
   const entry = document.getElementById('adminEntry');
   if (entry) entry.style.display = 'block';
 
+  isAdmin = false;
   canUseGroupDataTools = false;
-
-  // 資料檢查與修復工具預設隱藏；進入管理專區後，
-  // 再依 myGroupBuys 回傳的 isSuperAdmin 明確決定是否顯示。
-  const debugButton =
-    document.getElementById(
-      'debugGroupBuysButton'
-    );
-
-  if (debugButton) {
-    debugButton.style.display = 'none';
-  }
-
-  // isAdmin 保留給後續 Super Admin 審核功能使用。
-  window.handleAdminStatus = function(result) {
-    isAdmin = !!(
-      result
-      &&
-      result.success
-      &&
-      result.isAdmin
-    );
-
-  };
-
-  jsonp(
-    'adminStatus',
-    'handleAdminStatus',
-    { userId: currentUser.userId },
-    function() {
-      isAdmin = false;
-
-      if (debugButton) {
-        debugButton.style.display = 'none';
-      }
-    }
-  );
+  currentManagementRole =
+    'GROUP_BUY_ADMIN';
+  canManageCurrentGroup = false;
 }
 
 
@@ -3698,6 +3736,26 @@ function openAdminPanel() {
   document.getElementById('homePanel').style.display = 'none';
   document.getElementById('adminPanel').style.display = 'block';
 
+  const homeToolbar =
+    document.getElementById(
+      'homeToolbar'
+    );
+
+  if (homeToolbar) {
+    homeToolbar.style.display = 'none';
+  }
+
+  const entry =
+    document.getElementById(
+      'adminEntry'
+    );
+
+  if (entry) {
+    entry.style.display = 'none';
+  }
+
+  currentAdminView = 'mine';
+
   loadAdminList();
 }
 
@@ -3705,6 +3763,24 @@ function openAdminPanel() {
 function closeAdminPanel() {
   document.getElementById('adminPanel').style.display = 'none';
   document.getElementById('homePanel').style.display = 'block';
+
+  const homeToolbar =
+    document.getElementById(
+      'homeToolbar'
+    );
+
+  if (homeToolbar) {
+    homeToolbar.style.display = 'grid';
+  }
+
+  const entry =
+    document.getElementById(
+      'adminEntry'
+    );
+
+  if (entry) {
+    entry.style.display = 'block';
+  }
 
   loadOpenGroupBuys();
   loadClosedGroupBuys();
@@ -3721,46 +3797,54 @@ function loadAdminList() {
       return;
     }
 
-    window.adminGroupBuys =
+    window.adminAllGroupBuys =
       await hydrateGroupBuyItems(
         result.data || []
       );
 
-    canUseGroupDataTools =
-      result.isSuperAdmin === true;
+    currentManagementRole =
+      String(
+        result.managementRole
+        ||
+        'GROUP_BUY_ADMIN'
+      )
+      .trim()
+      .toUpperCase();
 
-    const debugButton =
+    canManageCurrentGroup =
+      result.canManageGroup === true;
+
+    isAdmin =
+      canManageCurrentGroup;
+
+    // 系統資料修復工具已移至獨立 System Admin 頁面。
+    canUseGroupDataTools = false;
+
+    const roleBadge =
       document.getElementById(
-        'debugGroupBuysButton'
+        'adminRoleBadge'
       );
 
-    const debugBox =
+    if (roleBadge) {
+      roleBadge.textContent =
+        canManageCurrentGroup
+          ? '群組管理者'
+          : '團購主';
+    }
+
+    const tabs =
       document.getElementById(
-        'debugGroupBuysBox'
+        'adminViewTabs'
       );
 
-    if (debugButton) {
-      debugButton.style.display =
-        canUseGroupDataTools
-          ? 'block'
-          : 'none';
+    if (tabs) {
+      tabs.classList.toggle(
+        'show',
+        canManageCurrentGroup
+      );
     }
 
-    if (!canUseGroupDataTools && debugBox) {
-      debugBox.style.display = 'none';
-      debugBox.innerHTML = '';
-    }
-
-    const panelTitle =
-      document.getElementById('adminPanelTitle');
-
-    if (panelTitle) {
-      panelTitle.textContent =
-        result.isSuperAdmin
-          ? '開團管理專區（Super Admin）'
-          : '我的開團管理';
-    }
-    renderAdminList();
+    refreshAdminManagementView();
   };
 
   jsonp(
@@ -3771,6 +3855,111 @@ function loadAdminList() {
       box.innerHTML = '<span class="error">無法讀取管理資料</span>';
     }
   );
+}
+
+
+function setAdminManagementView(viewName) {
+  if (!canManageCurrentGroup) {
+    currentAdminView = 'mine';
+  } else {
+    const allowed = [
+      'mine',
+      'pending',
+      'all'
+    ];
+
+    currentAdminView =
+      allowed.includes(viewName)
+        ? viewName
+        : 'mine';
+  }
+
+  refreshAdminManagementView();
+}
+
+
+function refreshAdminManagementView() {
+  const allRows =
+    Array.isArray(
+      window.adminAllGroupBuys
+    )
+      ? window.adminAllGroupBuys
+      : [];
+
+  const pendingCount =
+    allRows.filter(item =>
+      String(item.status || '')
+        .trim()
+        .toUpperCase()
+      ===
+      'PENDING'
+    ).length;
+
+  const pendingButton =
+    document.getElementById(
+      'adminViewPending'
+    );
+
+  if (pendingButton) {
+    pendingButton.textContent =
+      '待審核'
+      +
+      (pendingCount
+        ? ' (' + pendingCount + ')'
+        : '');
+  }
+
+  if (currentAdminView === 'pending') {
+    window.adminGroupBuys =
+      allRows.filter(item =>
+        String(item.status || '')
+          .trim()
+          .toUpperCase()
+        ===
+        'PENDING'
+      );
+  } else if (
+    currentAdminView === 'all'
+    &&
+    canManageCurrentGroup
+  ) {
+    window.adminGroupBuys =
+      allRows.slice();
+  } else {
+    currentAdminView = 'mine';
+    window.adminGroupBuys =
+      allRows.filter(isMyGroupBuy);
+  }
+
+  const tabMap = {
+    mine: 'adminViewMine',
+    pending: 'adminViewPending',
+    all: 'adminViewAll'
+  };
+
+  Object.keys(tabMap)
+    .forEach(viewName => {
+      const button =
+        document.getElementById(
+          tabMap[viewName]
+        );
+
+      if (!button) return;
+
+      const active =
+        currentAdminView
+        ===
+        viewName;
+
+      button.classList.toggle(
+        'active',
+        active
+      );
+
+      button.disabled = active;
+    });
+
+  renderAdminList();
 }
 
 
@@ -3791,11 +3980,18 @@ function renderAdminList() {
   const box = document.getElementById('adminList');
 
   if (!window.adminGroupBuys.length) {
+    const emptyText =
+      currentAdminView === 'pending'
+        ? '目前沒有待審核團購'
+        : currentAdminView === 'all'
+          ? '目前此群組沒有團購資料'
+          : '目前你沒有開團';
+
     box.className = 'message';
     box.innerHTML = `
-      <strong>${isAdmin ? '目前此群組沒有開團資料' : '目前你沒有開團'}</strong>
+      <strong>${emptyText}</strong>
       <div class="muted" style="margin-top:6px;">
-        可以點「我要開團」建立第一個團購。
+        可以點「建立新團」新增團購。
       </div>
     `;
     return;
@@ -3864,9 +4060,7 @@ function renderAdminList() {
         }">${escapeHtml(statusText)}</span>
       </div>
 
-      <div class="info">
-        單價：$${formatNumber(item.price)} / ${escapeHtml(item.unit)}
-      </div>
+      ${renderGroupBuyPriceInfo(item)}
 
       ${
         item.ownerLineName
@@ -3876,7 +4070,7 @@ function renderAdminList() {
 
       ${
         status === 'PENDING'
-          ? `<div class="muted" style="margin-top:6px;">等待 Super Admin 審核。</div>`
+          ? `<div class="muted" style="margin-top:6px;">等待群組管理者審核。</div>`
           : ''
       }
 
