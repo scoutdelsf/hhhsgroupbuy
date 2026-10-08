@@ -1,0 +1,899 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>HHHS 團購系統｜系統管理</title>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    :root {
+      --green: #18a66a;
+      --green-dark: #0e7d4e;
+      --green-soft: #eaf8f1;
+      --blue: #2879d0;
+      --red: #c43d3d;
+      --red-soft: #fff0f0;
+      --ink: #20242a;
+      --muted: #707780;
+      --line: #e3e6e8;
+      --surface: #ffffff;
+      --background: #f4f6f7;
+    }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: Arial, "Noto Sans TC", sans-serif;
+      background: var(--background);
+      color: var(--ink);
+    }
+
+    button,
+    select,
+    input {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: default;
+      opacity: .58;
+    }
+
+    .page {
+      width: 100%;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(24px, 7vw, 32px);
+      line-height: 1.2;
+    }
+
+    .subtitle {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .version {
+      flex: 0 0 auto;
+      color: var(--muted);
+      font-size: 12px;
+      padding-top: 7px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid rgba(0, 0, 0, .04);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 3px 14px rgba(20, 32, 39, .07);
+    }
+
+    .identity {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .identity-name {
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .role-badge,
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 6px 10px;
+      white-space: nowrap;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .role-badge {
+      color: #fff;
+      background: var(--blue);
+    }
+
+    .section-title {
+      margin: 0 0 4px;
+      font-size: 20px;
+      line-height: 1.35;
+    }
+
+    .section-help {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    select,
+    input[type="search"] {
+      width: 100%;
+      min-height: 46px;
+      border: 1px solid #cfd5d8;
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: var(--ink);
+      background: #fff;
+      outline: none;
+    }
+
+    select:focus,
+    input[type="search"]:focus {
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(24, 166, 106, .13);
+    }
+
+    .primary,
+    .secondary,
+    .danger,
+    .success {
+      min-height: 44px;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 700;
+    }
+
+    .primary {
+      width: 100%;
+      color: #fff;
+      background: var(--green);
+    }
+
+    .primary:hover { background: var(--green-dark); }
+
+    .secondary {
+      color: var(--ink);
+      background: #eef1f2;
+    }
+
+    .danger {
+      color: var(--red);
+      background: var(--red-soft);
+    }
+
+    .success {
+      color: var(--green-dark);
+      background: var(--green-soft);
+    }
+
+    .list-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .count {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .admin-row {
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      padding: 13px;
+      margin-top: 10px;
+    }
+
+    .admin-row.disabled-row {
+      background: #fafafa;
+      opacity: .76;
+    }
+
+    .admin-row-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .admin-name {
+      font-size: 17px;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .group-name {
+      margin-top: 4px;
+      color: var(--green-dark);
+      font-size: 14px;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .technical-id {
+      margin-top: 5px;
+      color: #8a9097;
+      font-size: 11px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .status-badge.enabled {
+      color: var(--green-dark);
+      background: var(--green-soft);
+    }
+
+    .status-badge.disabled {
+      color: #6c7278;
+      background: #eceeef;
+    }
+
+    .row-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 10px;
+    }
+
+    .notice,
+    .error,
+    .empty {
+      border-radius: 12px;
+      padding: 13px;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .notice {
+      color: #3d596b;
+      background: #edf6fb;
+    }
+
+    .error {
+      color: #9d2727;
+      background: var(--red-soft);
+    }
+
+    .empty {
+      color: var(--muted);
+      background: #f6f7f7;
+      text-align: center;
+    }
+
+    .loading {
+      color: var(--muted);
+      text-align: center;
+      padding: 24px 12px;
+    }
+
+    .hidden { display: none !important; }
+
+    #gasPostFrame {
+      display: none;
+      width: 0;
+      height: 0;
+      border: 0;
+    }
+
+    @media (min-width: 640px) {
+      body { padding: 24px; }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+
+      .form-grid .field { margin-bottom: 0; }
+
+      .primary {
+        width: auto;
+        min-width: 180px;
+      }
+
+      .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 16px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="page">
+    <div class="topbar">
+      <div>
+        <h1>系統管理專區</h1>
+        <div class="subtitle">跨 LINE 群組管理群組管理員權限</div>
+      </div>
+      <div class="version">v0.1.0</div>
+    </div>
+
+    <section id="identityCard" class="card">
+      <div id="identityContent" class="loading">正在確認 LINE 身分與系統權限…</div>
+    </section>
+
+    <div id="errorBox" class="error hidden"></div>
+
+    <div id="adminContent" class="hidden">
+      <section class="card">
+        <h2 class="section-title">設定群組管理員</h2>
+        <p class="section-help">
+          團購主會依「誰建立該團」自動判定，不需要在這裡設定。
+        </p>
+
+        <div class="form-grid">
+          <div class="field">
+            <label for="groupSelect">LINE 群組</label>
+            <select id="groupSelect">
+              <option value="">請選擇群組</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="userSelect">群組管理員</label>
+            <select id="userSelect">
+              <option value="">請選擇使用者</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button id="saveButton" class="primary" type="button" onclick="enableSelectedAdmin()">
+            啟用群組管理員權限
+          </button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="list-heading">
+          <h2 class="section-title">目前權限設定</h2>
+          <span id="adminCount" class="count"></span>
+        </div>
+
+        <div class="field">
+          <input id="searchInput" type="search" placeholder="搜尋群組或管理員" oninput="renderAdminList()">
+        </div>
+
+        <div id="adminList"></div>
+      </section>
+
+      <div class="notice">
+        System Admin 名單仍由 GAS 的 <strong>Config.gs</strong> 控制；這個頁面只管理各 LINE 群組的群組管理員。
+      </div>
+    </div>
+  </main>
+
+  <iframe id="gasPostFrame" name="gasPostFrame"></iframe>
+
+  <script>
+    const LIFF_ID = '2011825033-7byocb0b';
+
+    const API_URL =
+      'https://script.google.com/macros/s/AKfycbyL7dyXlrGU9PNq6jqqcnXrCXKK3Ouhct68vCo2W9qFYzyH2R2SL9y5zCWuiKbDcva1/exec';
+
+    const pendingRequests = {};
+    let currentUser = null;
+    let overview = {
+      groups: [],
+      users: [],
+      groupAdmins: []
+    };
+    let renderedAdminRows = [];
+
+    window.onload = function() {
+      initializeSystemAdmin();
+    };
+
+
+    async function initializeSystemAdmin() {
+      try {
+        await liff.init({ liffId: LIFF_ID });
+
+        if (!liff.isLoggedIn()) {
+          liff.login({ redirectUri: window.location.href });
+          return;
+        }
+
+        currentUser = await liff.getProfile();
+
+        await adminPost(
+          'syncUser',
+          {
+            displayName: currentUser.displayName || '',
+            lineName: currentUser.displayName || '',
+            pictureUrl: currentUser.pictureUrl || ''
+          }
+        );
+
+        await loadOverview();
+      } catch (error) {
+        showFatalError(
+          error && error.message
+            ? error.message
+            : String(error)
+        );
+      }
+    }
+
+
+    async function loadOverview() {
+      const result = await adminPost(
+        'systemAdminGetAccessOverview',
+        {}
+      );
+
+      if (!result || !result.success) {
+        throw new Error(
+          result && result.message
+            ? result.message
+            : '無法讀取系統管理資料'
+        );
+      }
+
+      overview = {
+        groups: Array.isArray(result.groups)
+          ? result.groups
+          : [],
+        users: Array.isArray(result.users)
+          ? result.users
+          : [],
+        groupAdmins: Array.isArray(result.groupAdmins)
+          ? result.groupAdmins
+          : []
+      };
+
+      renderIdentity();
+      renderSelectOptions();
+      renderAdminList();
+
+      document
+        .getElementById('adminContent')
+        .classList.remove('hidden');
+
+      document
+        .getElementById('errorBox')
+        .classList.add('hidden');
+    }
+
+
+    function renderIdentity() {
+      const identityContent =
+        document.getElementById('identityContent');
+
+      identityContent.className = 'identity';
+      identityContent.innerHTML = `
+        <div>
+          <div class="identity-name">${escapeHtml(
+            currentUser && currentUser.displayName
+              ? currentUser.displayName
+              : 'LINE 使用者'
+          )}</div>
+          <div class="subtitle">LINE 已登入</div>
+        </div>
+        <span class="role-badge">系統管理者</span>
+      `;
+    }
+
+
+    function renderSelectOptions() {
+      const groupSelect =
+        document.getElementById('groupSelect');
+
+      const userSelect =
+        document.getElementById('userSelect');
+
+      const oldGroupId = groupSelect.value;
+      const oldUserId = userSelect.value;
+
+      groupSelect.innerHTML =
+        '<option value="">請選擇群組</option>'
+        + overview.groups.map(function(group) {
+          const label = group.groupName
+            ? group.groupName
+            : shortenId(group.groupId);
+
+          return '<option value="'
+            + escapeAttribute(group.groupId)
+            + '">'
+            + escapeHtml(label)
+            + '</option>';
+        }).join('');
+
+      userSelect.innerHTML =
+        '<option value="">請選擇使用者</option>'
+        + overview.users.map(function(user) {
+          const label = user.lineName
+            ? user.lineName
+            : shortenId(user.userId);
+
+          return '<option value="'
+            + escapeAttribute(user.userId)
+            + '" data-line-name="'
+            + escapeAttribute(user.lineName || '')
+            + '">'
+            + escapeHtml(label)
+            + '</option>';
+        }).join('');
+
+      if (
+        oldGroupId
+        && overview.groups.some(function(group) {
+          return group.groupId === oldGroupId;
+        })
+      ) {
+        groupSelect.value = oldGroupId;
+      }
+
+      if (
+        oldUserId
+        && overview.users.some(function(user) {
+          return user.userId === oldUserId;
+        })
+      ) {
+        userSelect.value = oldUserId;
+      }
+    }
+
+
+    function renderAdminList() {
+      const list = document.getElementById('adminList');
+      const count = document.getElementById('adminCount');
+      const search = String(
+        document.getElementById('searchInput').value || ''
+      ).trim().toLowerCase();
+
+      const rows = overview.groupAdmins.filter(function(row) {
+        if (!search) return true;
+
+        return [
+          row.groupName,
+          row.groupId,
+          row.lineName,
+          row.userId
+        ].some(function(value) {
+          return String(value || '')
+            .toLowerCase()
+            .includes(search);
+        });
+      });
+
+      renderedAdminRows = rows.slice();
+
+      const enabledCount = overview.groupAdmins.filter(function(row) {
+        return row.enabled === true;
+      }).length;
+
+      count.textContent =
+        enabledCount + ' 位啟用中';
+
+      if (!rows.length) {
+        list.innerHTML = search
+          ? '<div class="empty">找不到符合的權限設定</div>'
+          : '<div class="empty">目前尚未設定群組管理員</div>';
+        return;
+      }
+
+      list.innerHTML = rows.map(function(row, rowIndex) {
+        const enabled = row.enabled === true;
+        const groupLabel = row.groupName
+          || shortenId(row.groupId);
+
+        const userLabel = row.lineName
+          || shortenId(row.userId);
+
+        return `
+          <article class="admin-row ${enabled ? '' : 'disabled-row'}">
+            <div class="admin-row-top">
+              <div>
+                <div class="admin-name">${escapeHtml(userLabel)}</div>
+                <div class="group-name">${escapeHtml(groupLabel)}</div>
+              </div>
+              <span class="status-badge ${enabled ? 'enabled' : 'disabled'}">
+                ${enabled ? '已啟用' : '已停用'}
+              </span>
+            </div>
+
+            <div class="technical-id">
+              群組：${escapeHtml(row.groupId)}<br>
+              使用者：${escapeHtml(row.userId)}
+            </div>
+
+            <div class="row-actions">
+              <button
+                class="${enabled ? 'danger' : 'success'}"
+                type="button"
+                onclick="toggleRenderedAdminPermission(${rowIndex})"
+              >
+                ${enabled ? '停用權限' : '重新啟用'}
+              </button>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+
+    async function toggleRenderedAdminPermission(rowIndex) {
+      const row = renderedAdminRows[rowIndex];
+
+      if (!row) {
+        alert('找不到這筆權限設定，請重新整理後再試');
+        return;
+      }
+
+      await toggleAdminPermission(
+        row.groupId,
+        row.userId,
+        row.lineName || '',
+        row.enabled !== true
+      );
+    }
+
+
+    async function enableSelectedAdmin() {
+      const groupSelect =
+        document.getElementById('groupSelect');
+
+      const userSelect =
+        document.getElementById('userSelect');
+
+      const groupId = String(groupSelect.value || '').trim();
+      const userId = String(userSelect.value || '').trim();
+
+      if (!groupId) {
+        alert('請先選擇 LINE 群組');
+        groupSelect.focus();
+        return;
+      }
+
+      if (!userId) {
+        alert('請先選擇群組管理員');
+        userSelect.focus();
+        return;
+      }
+
+      const selectedOption =
+        userSelect.options[userSelect.selectedIndex];
+
+      await savePermission({
+        groupId: groupId,
+        userId: userId,
+        lineName: selectedOption
+          ? selectedOption.dataset.lineName || selectedOption.textContent || ''
+          : '',
+        enabled: true
+      });
+    }
+
+
+    async function toggleAdminPermission(
+      groupId,
+      userId,
+      lineName,
+      enabled
+    ) {
+      if (
+        !enabled
+        && !window.confirm('確定要停用這位使用者的群組管理權限嗎？')
+      ) {
+        return;
+      }
+
+      await savePermission({
+        groupId: groupId,
+        userId: userId,
+        lineName: lineName,
+        enabled: enabled
+      });
+    }
+
+
+    async function savePermission(payload) {
+      setBusy(true);
+
+      try {
+        const result = await adminPost(
+          'systemAdminSaveGroupAdmin',
+          payload
+        );
+
+        if (!result || !result.success) {
+          throw new Error(
+            result && result.message
+              ? result.message
+              : '權限儲存失敗'
+          );
+        }
+
+        await loadOverview();
+        alert(result.message || '權限已更新');
+      } catch (error) {
+        alert(
+          error && error.message
+            ? error.message
+            : String(error)
+        );
+      } finally {
+        setBusy(false);
+      }
+    }
+
+
+    function setBusy(busy) {
+      const buttons = document.querySelectorAll('button');
+
+      buttons.forEach(function(button) {
+        button.disabled = busy;
+      });
+
+      const saveButton = document.getElementById('saveButton');
+
+      if (saveButton) {
+        saveButton.textContent = busy
+          ? '正在儲存…'
+          : '啟用群組管理員權限';
+      }
+    }
+
+
+    function showFatalError(message) {
+      const identityContent =
+        document.getElementById('identityContent');
+
+      identityContent.className = '';
+      identityContent.textContent = '無法進入系統管理專區';
+
+      const errorBox = document.getElementById('errorBox');
+      errorBox.textContent = message || '系統管理權限確認失敗';
+      errorBox.classList.remove('hidden');
+
+      document
+        .getElementById('adminContent')
+        .classList.add('hidden');
+    }
+
+
+    function adminPost(action, payload) {
+      return new Promise(function(resolve, reject) {
+        const idToken = liff.getIDToken();
+
+        if (!idToken) {
+          reject(new Error('無法取得 LINE ID Token'));
+          return;
+        }
+
+        const requestId =
+          'SYS_' + Date.now() + '_'
+          + Math.random().toString(36).slice(2);
+
+        const timeout = setTimeout(function() {
+          delete pendingRequests[requestId];
+          reject(new Error('系統管理操作逾時，請重新整理後再試'));
+        }, 45000);
+
+        pendingRequests[requestId] = {
+          resolve: resolve,
+          reject: reject,
+          timeout: timeout
+        };
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = API_URL;
+        form.target = 'gasPostFrame';
+        form.style.display = 'none';
+
+        const fields = {
+          action: action,
+          idToken: idToken,
+          requestId: requestId,
+          parentOrigin: location.origin,
+          payload: JSON.stringify(payload || {})
+        };
+
+        Object.keys(fields).forEach(function(name) {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = name;
+          input.value = fields[name];
+          form.appendChild(input);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+
+        setTimeout(function() {
+          form.remove();
+        }, 1000);
+      });
+    }
+
+
+    window.addEventListener('message', function(event) {
+      if (
+        !event.data
+        || event.data.type !== 'GAS_ADMIN_RESPONSE'
+      ) {
+        return;
+      }
+
+      const requestId = event.data.requestId;
+      const pending = pendingRequests[requestId];
+
+      if (!pending) return;
+
+      clearTimeout(pending.timeout);
+      delete pendingRequests[requestId];
+      pending.resolve(event.data.result);
+    });
+
+
+    function shortenId(value) {
+      const text = String(value || '');
+
+      if (text.length <= 18) return text;
+
+      return text.slice(0, 9)
+        + '…'
+        + text.slice(-6);
+    }
+
+
+    function escapeHtml(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+
+    function escapeAttribute(value) {
+      return escapeHtml(value);
+    }
+
+
+    function escapeJsString(value) {
+      return String(value == null ? '' : value)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/\r/g, '\\r')
+        .replace(/\n/g, '\\n')
+        .replace(/</g, '\\x3c');
+    }
+  </script>
+</body>
+</html>
