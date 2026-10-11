@@ -1103,7 +1103,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.29</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.30</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1195,9 +1195,21 @@
         </div>
 
         <div id="proxyNameWrap" style="display:none;">
+          <label for="proxyRecipient">指定給已登記的當事人</label>
+          <select id="proxyRecipient" onchange="selectProxyRecipient()">
+            <option value="">手動填寫姓名（尚未綁定）</option>
+          </select>
+          <div class="muted" style="margin:6px 0;">綁定後本人可查看及修改；本人實際修改訂購內容前，會保留代填註記。</div>
           <label for="proxyOrderName">代訂姓名</label>
           <input id="proxyOrderName" type="text" maxlength="40" placeholder="例如：王小明">
+          <button type="button" class="outline" style="margin-top:8px;" onclick="resetProxyRecipient()">換另一位代訂者</button>
         </div>
+
+        <div id="selfOrderSelectWrap" style="display:none;">
+          <label for="selfOrderSelect">選擇要查看或修改的訂單</label>
+          <select id="selfOrderSelect" onchange="selectSelfOrder()"></select>
+        </div>
+        <div id="orderAttributionHint" class="muted" style="margin-top:8px;"></div>
 
         <div id="singleOrderControls">
           <label for="orderQty" style="margin-top:16px;">我要的總數量</label>
@@ -1405,6 +1417,58 @@ let currentGuestToken = '';
 let currentBuy = null;
 let orderDataReady = false;
 let currentOrderType = 'SELF';
+let selectedOrderId = '';
+let loadedRecipientUserId = '';
+let proxyUsersLoaded = false;
+let proxyUsers = [];
+
+async function loadProxyUsers() {
+  if (proxyUsersLoaded || guestMode) return;
+  const result = await adminPost('proxyOrderUsers', {});
+  if (!result.success) throw new Error(result.message || '無法讀取使用者');
+  proxyUsers = Array.isArray(result.users) ? result.users : [];
+  const select = document.getElementById('proxyRecipient');
+  select.innerHTML = '<option value="">手動填寫姓名（尚未綁定）</option>';
+  proxyUsers.forEach(user => {
+    const option = document.createElement('option');
+    option.value = user.userId;
+    option.textContent = user.lineName + '（' + user.userId.slice(-6) + '）';
+    select.appendChild(option);
+  });
+  proxyUsersLoaded = true;
+}
+
+async function selectProxyRecipient() {
+  const recipient = document.getElementById('proxyRecipient').value;
+  if (loadedRecipientUserId && recipient !== loadedRecipientUserId) {
+    document.getElementById('proxyRecipient').value = loadedRecipientUserId;
+    alert('這筆訂單已綁定當事人，不能改綁其他人');
+    return;
+  }
+  const user = proxyUsers.find(row => row.userId === recipient);
+  if (user) document.getElementById('proxyOrderName').value = user.lineName;
+  document.getElementById('proxyOrderName').readOnly = !!recipient;
+  // 已讀取的手動代填訂單可直接綁定，不另建一筆訂單。
+  if (!selectedOrderId) await loadSelectedOrderQuantity();
+}
+
+function resetProxyRecipient() {
+  if (!orderDataReady) return;
+  selectedOrderId = '';
+  loadedRecipientUserId = '';
+  document.getElementById('proxyRecipient').value = '';
+  document.getElementById('proxyOrderName').value = '';
+  document.getElementById('proxyOrderName').readOnly = false;
+  document.getElementById('orderQty').value = 0;
+  resetCategoryOrderQuantities();
+  updateOrderTotal();
+  document.getElementById('proxyOrderName').focus();
+}
+
+async function selectSelfOrder() {
+  selectedOrderId = document.getElementById('selfOrderSelect').value;
+  await loadSelectedOrderQuantity();
+}
 let currentOrderItems = [];
 let adminProductMode = 'SINGLE';
 let adminCategoryRowSequence = 0;
@@ -2917,6 +2981,8 @@ function refreshOrderTypeUI() {
         ? 'block'
         : 'none';
   }
+  document.getElementById('selfOrderSelectWrap').style.display =
+    !isProxy && document.getElementById('selfOrderSelect').options.length > 1 ? 'block' : 'none';
 }
 
 
@@ -2946,6 +3012,12 @@ async function setOrderMode(type) {
 
   currentOrderType =
     nextType;
+  selectedOrderId = '';
+  loadedRecipientUserId = '';
+  document.getElementById('proxyRecipient').value = '';
+  document.getElementById('proxyOrderName').readOnly = false;
+  document.getElementById('orderAttributionHint').textContent = '';
+  document.getElementById('selfOrderSelectWrap').style.display = 'none';
 
   const input =
     document.getElementById(
@@ -2977,6 +3049,14 @@ async function setOrderMode(type) {
   if (
     currentOrderType === 'PROXY'
   ) {
+    try {
+      setOrderLoadingState(true);
+      await loadProxyUsers();
+    } catch (error) {
+      alert(error.message || '無法讀取已登記使用者，可先手動填姓名');
+    } finally {
+      setOrderLoadingState(false);
+    }
     const nameInput =
       document.getElementById(
         'proxyOrderName'
@@ -3044,6 +3124,9 @@ async function loadSelectedOrderQuantity() {
           orderType:
             currentOrderType,
 
+          orderId: selectedOrderId,
+          recipientUserId: document.getElementById('proxyRecipient').value,
+
           orderName:
             currentOrderType === 'PROXY'
               ? proxyName
@@ -3058,6 +3141,30 @@ async function loadSelectedOrderQuantity() {
         '無法讀取目前訂單'
       );
     }
+
+    selectedOrderId = result.orderId || '';
+    loadedRecipientUserId = result.recipientUserId || '';
+    if (currentOrderType === 'SELF') {
+      const select = document.getElementById('selfOrderSelect');
+      select.innerHTML = '';
+      (result.orders || []).forEach(order => {
+        const option = document.createElement('option');
+        option.value = order.orderId;
+        option.textContent = order.orderType === 'PROXY'
+          ? order.orderName + '（由 ' + order.createdByName + ' 代填）'
+          : order.orderName + '（本人訂單）';
+        select.appendChild(option);
+      });
+      select.value = selectedOrderId;
+      document.getElementById('selfOrderSelectWrap').style.display = select.options.length > 1 ? 'block' : 'none';
+    } else if (loadedRecipientUserId) {
+      document.getElementById('proxyRecipient').value = loadedRecipientUserId;
+      document.getElementById('proxyOrderName').readOnly = true;
+    }
+    document.getElementById('orderAttributionHint').textContent =
+      currentOrderType === 'SELF' && result.orderType === 'PROXY'
+        ? '由 ' + (result.createdByName || 'LINE 使用者') + ' 代填。只有你實際修改品項或數量並儲存，才會取消代填註記。'
+        : '';
 
     if (isCategoryGroupBuy(currentBuy)) {
       const quantityByItemId = {};
@@ -3118,7 +3225,9 @@ function setOrderLoadingState(isLoading) {
     document.getElementById('orderSaveButton'),
     document.getElementById('orderModeSelfTab'),
     document.getElementById('orderModeProxyTab'),
-    document.getElementById('proxyOrderName')
+    document.getElementById('proxyOrderName'),
+    document.getElementById('proxyRecipient'),
+    document.getElementById('selfOrderSelect')
   ];
 
   document
@@ -3298,6 +3407,14 @@ async function openOrder(buyId) {
       : [];
 
   currentOrderType = 'SELF';
+
+  selectedOrderId = '';
+  loadedRecipientUserId = '';
+  document.getElementById('proxyRecipient').value = '';
+  document.getElementById('proxyOrderName').readOnly = false;
+  document.getElementById('selfOrderSelect').innerHTML = '';
+  document.getElementById('selfOrderSelectWrap').style.display = 'none';
+  document.getElementById('orderAttributionHint').textContent = '';
 
   const proxyNameInput =
     document.getElementById(
@@ -3748,6 +3865,9 @@ async function confirmOrder() {
 
           orderType:
             currentOrderType,
+
+          orderId: selectedOrderId,
+          recipientUserId: document.getElementById('proxyRecipient').value,
 
           orderName:
             currentOrderType === 'PROXY'
@@ -5794,6 +5914,8 @@ document.addEventListener('change', function(event) {
     currentOrderType === 'PROXY' &&
     orderDataReady
   ) {
+    selectedOrderId = '';
+    loadedRecipientUserId = '';
     loadSelectedOrderQuantity();
   }
 });
