@@ -601,6 +601,65 @@
       color: var(--gb-green-dark);
     }
 
+    .participant-order {
+      padding: 12px 2px;
+      border-bottom: 1px solid #edf3ef;
+    }
+
+    .participant-order-totals {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+
+    .participant-order-totals td {
+      width: 50%;
+      padding: 0;
+      vertical-align: baseline;
+      font-size: 12px;
+      font-weight: 800;
+      color: #26332b;
+    }
+
+    .participant-order-totals td:last-child { text-align: right; }
+
+    .participant-payment {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed #dce4df;
+      font-size: 12px;
+    }
+
+    .payment-actions {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .payment-actions button {
+      width: auto;
+      flex: 0 1 auto;
+      min-width: 0;
+      margin: 0;
+      padding: 7px 6px;
+      font-size: clamp(10px, 3.3vw, 12px);
+      line-height: 1.25;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    .payment-notice-actions { margin-top: 4px; }
+    .payment-notice-actions button {
+      width: auto;
+      margin: 0;
+      padding: 5px 0;
+      background: transparent;
+      border: 0;
+      font-size: 11px;
+      color: #777;
+    }
+
 
     .order-quantity-row button:disabled,
     #orderQty:disabled,
@@ -1103,7 +1162,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.31</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.32</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -2589,17 +2648,18 @@ function renderPaymentCard(payment, index, busy) {
   const button = (action, label) => '<button type="button" class="outline" '
     + (busy ? 'disabled ' : '') + 'onclick="operateOrderPayment(' + index + ',\'' + action + '\')">' + label + '</button>';
   const controls = [];
+  const noticeControls = [];
   if (payment.canManage) {
     if (payment.remainingAmount > 0 && payment.status !== 'CANCELLED') {
       controls.push(button('CONFIRM', pending ? '確認已付款' : '標記已付款'));
       controls.push(button('PARTIAL', '登記部分收款'));
     }
-    if (pending) controls.push(button('REJECT', '尚未收到／退回提醒'));
+    if (pending) noticeControls.push(button('REJECT', '尚未收到／退回提醒'));
     controls.push(button('CORRECT', '更正收款'));
   } else if (payment.canRemind) {
     controls.push(button('NOTICE', '提醒團主已付款'));
   }
-  return '<div style="margin-top:10px;padding-top:9px;border-top:1px dashed #dce4df;font-size:13px;">'
+  return '<div class="participant-payment">'
     + '<strong style="color:' + (payment.status === 'PAID' ? '#128451' : '#555') + ';">'
     + labels[payment.status] + '</strong>｜應付 $' + formatNumber(payment.totalAmount)
     + '／已收 $' + formatNumber(payment.paidAmount)
@@ -2607,7 +2667,9 @@ function renderPaymentCard(payment, index, busy) {
     + (payment.overpaidAmount > 0 ? '<div style="color:#a85d15;">多收 $' + formatNumber(payment.overpaidAmount) + '，請確認退款或更正紀錄。</div>' : '')
     + (pending ? '<div style="margin-top:5px;color:#aa6613;">已提醒，等待團主確認（尚未列入實收）</div>' : '')
     + (payment.noticeStatus === 'REJECTED' ? '<div class="muted" style="margin-top:5px;">上次提醒未確認收足，請核對後再提醒。</div>' : '')
-    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">' + controls.join('') + '</div></div>';
+    + (controls.length ? '<div class="payment-actions">' + controls.join('') + '</div>' : '')
+    + (noticeControls.length ? '<div class="payment-notice-actions">' + noticeControls.join('') + '</div>' : '')
+    + '</div>';
 }
 
 async function operateOrderPayment(index, action) {
@@ -2968,13 +3030,16 @@ function openParticipants(buyId) {
                   `;
 
             const totalAmountDetails = `
-              <div class="participant-total-amount">
-                總計：$${formatNumber(participantTotalAmount)}
-              </div>
+              <table class="participant-order-totals" aria-label="訂單總數量與總金額">
+                <tbody><tr>
+                  <td>總數量：${Number(row.quantity || 0)} ${orderItemLines.length ? '件' : escapeHtml(item.unit || '')}</td>
+                  <td>總計：$${formatNumber(participantTotalAmount)}</td>
+                </tr></tbody>
+              </table>
             `;
 
             return `
-              <div class="participant-row">
+              <div class="participant-order">
                 <div class="participant-main">
                   <div class="participant-name">
                     ${escapeHtml(participantName)}
@@ -2983,10 +3048,6 @@ function openParticipants(buyId) {
                   ${itemDetails}
                   ${totalAmountDetails}
                   <div data-payment-order="${escapeHtml(row.orderId || '')}"></div>
-                </div>
-                <div class="participant-qty">
-                  ${Number(row.quantity || 0)}
-                  ${orderItemLines.length ? '件' : escapeHtml(item.unit || '')}
                 </div>
               </div>
             `;
