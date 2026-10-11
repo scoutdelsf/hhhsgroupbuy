@@ -1,697 +1,6144 @@
-function doGet(e) {
-  const params =
-    e && e.parameter
-      ? e.parameter
-      : {};
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>HHHS 團購系統</title>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
-  const action =
-    params.action || '';
-
-  const callback =
-    params.callback || '';
-
-  try {
-    let result;
-
-    switch (action) {
-
-      case 'openGroupBuys': {
-        const groupSession =
-          requireGroupSession_(
-            params.sessionToken || ''
-          );
-
-        result = {
-          success: true,
-          data:
-            getOpenGroupBuysWithSummary()
-              .filter(item =>
-                String(item.groupId || '').trim()
-                ===
-                String(groupSession.groupId).trim()
-              )
-        };
-        break;
-      }
-
-      case 'groupBuyItems': {
-        const groupSession =
-          requireGroupSession_(
-            params.sessionToken || ''
-          );
-
-        const buyId =
-          String(
-            params.buyId || ''
-          ).trim();
-
-        if (!buyId) {
-          throw new Error(
-            '缺少 buyId'
-          );
-        }
-
-        const groupBuy =
-          getGroupBuyObjectById_(
-            buyId
-          );
-
-        if (
-          String(
-            groupBuy.groupId || ''
-          ).trim()
-          !==
-          String(
-            groupSession.groupId || ''
-          ).trim()
-        ) {
-          throw new Error(
-            '這筆團購不屬於目前 LINE 群組'
-          );
-        }
-
-        const items =
-          getGroupBuyItemsForClient_(
-            buyId
-          );
-
-        result = {
-          success: true,
-          buyId: buyId,
-          productMode:
-            items.length > 0
-              ? 'CATEGORY'
-              : 'SINGLE',
-          data: items
-        };
-        break;
-      }
-
-
-      case 'recentClosedGroupBuys': {
-        const groupSession =
-          requireGroupSession_(
-            params.sessionToken || ''
-          );
-
-        result = {
-          success: true,
-          data:
-            getRecentClosedGroupBuysWithSummary()
-              .filter(item =>
-                String(item.groupId || '').trim()
-                ===
-                String(groupSession.groupId).trim()
-              )
-        };
-        break;
-      }
-
-      case 'adminStatus':
-        result = {
-          success: true,
-          isAdmin:
-            isSystemAdminUserId(
-              params.userId || ''
-            ),
-          isSystemAdmin:
-            isSystemAdminUserId(
-              params.userId || ''
-            )
-        };
-        break;
-
-
-      case 'debugGroupBuys': {
-        const groupSession =
-          requireGroupSession_(
-            params.sessionToken || ''
-          );
-
-        if (
-          !isSystemAdminUserId(
-            groupSession.userId || ''
-          )
-        ) {
-          throw new Error(
-            '你沒有 System Admin 權限'
-          );
-        }
-
-        const all =
-          getAllGroupBuysWithSummary();
-
-        result = {
-          success: true,
-          currentGroupId:
-            String(groupSession.groupId || ''),
-          currentUserId:
-            String(groupSession.userId || ''),
-          rows:
-            all.map(item => ({
-              buyId:
-                String(item.buyId || ''),
-              name:
-                String(item.name || ''),
-              status:
-                String(item.status || ''),
-              groupId:
-                String(item.groupId || ''),
-              ownerUserId:
-                String(item.ownerUserId || ''),
-              ownerLineName:
-                String(item.ownerLineName || ''),
-              groupMatched:
-                String(item.groupId || '').trim()
-                ===
-                String(groupSession.groupId || '').trim(),
-              ownerMatched:
-                String(item.ownerUserId || '').trim()
-                ===
-                String(groupSession.userId || '').trim()
-            }))
-        };
-        break;
-      }
-
-
-      case 'orderParticipants': {
-        const groupSession =
-          requireGroupSession_(
-            params.sessionToken || ''
-          );
-
-        result =
-          getOrderParticipants_(
-            params.buyId || '',
-            groupSession.groupId
-          );
-        break;
-      }
-
-
-      case 'suspendedGroupBuys': {
-        const groupSession =
-          requireGroupSession_(
-            params.sessionToken || ''
-          );
-
-        result = {
-          success: true,
-          data:
-            getAllGroupBuysWithSummary()
-              .filter(item =>
-                String(item.groupId || '').trim()
-                ===
-                String(groupSession.groupId).trim()
-                &&
-                String(item.status || '')
-                  .trim()
-                  .toUpperCase()
-                ===
-                'SUSPENDED'
-              )
-        };
-        break;
-      }
-
-      case 'myGroupBuys': {
-        const groupSession =
-          requireGroupSession_(
-            params.sessionToken || ''
-          );
-
-        const managementRole =
-          getManagementRole_(
-            groupSession.userId || '',
-            groupSession.groupId || ''
-          );
-
-        const isSystemAdmin =
-          managementRole
-          ===
-          'SYSTEM_ADMIN';
-
-        const isGroupSuperAdmin =
-          managementRole
-          ===
-          'GROUP_SUPER_ADMIN';
-
-        const canManageGroup =
-          isSystemAdmin
-          ||
-          isGroupSuperAdmin;
-
-        let data =
-          getAllGroupBuysWithSummary()
-            .filter(item =>
-              String(item.groupId || '').trim()
-              ===
-              String(groupSession.groupId).trim()
-            );
-
-        // System Admin 與目前群組的 Super Admin：
-        // 可查看目前群組內全部團購。
-        // 團購主：只看自己建立的團購。
-        if (!canManageGroup) {
-          data = data.filter(item =>
-            String(item.ownerUserId || '').trim()
-            ===
-            String(groupSession.userId || '').trim()
-          );
-        }
-
-        result = {
-          success: true,
-          data: data,
-          managementRole:
-            managementRole,
-          isSystemAdmin:
-            isSystemAdmin,
-          isGroupSuperAdmin:
-            isGroupSuperAdmin,
-          canManageGroup:
-            canManageGroup,
-
-          // 舊前端相容欄位；新前端改讀上述明確角色。
-          isSuperAdmin:
-            canManageGroup
-        };
-        break;
-      }
-
-      case 'allGroupBuysForAdmin': {
-        const groupSession =
-          requireGroupSession_(
-            params.sessionToken || ''
-          );
-
-        if (
-          !canManageCurrentGroup_(
-            groupSession.userId || '',
-            groupSession.groupId || ''
-          )
-        ) {
-          throw new Error('你沒有目前群組的管理權限');
-        }
-
-        result = {
-          success: true,
-          data:
-            getAllGroupBuysWithSummary()
-              .filter(item =>
-                String(item.groupId || '').trim()
-                ===
-                String(groupSession.groupId).trim()
-              )
-        };
-        break;
-      }
-
-      case 'ping':
-        result = {
-          success: true,
-          message: 'API OK',
-          time:
-            new Date().toISOString()
-        };
-        break;
-
-      default:
-        result = {
-          success: false,
-          message: 'Unknown action'
-        };
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: Arial, "Noto Sans TC", sans-serif;
+      background: #f4f5f7;
+      color: #222;
+    }
+    .container { width: 100%; max-width: 640px; margin: 0 auto; }
+    .header { margin-bottom: 16px; }
+    .title { font-size: 26px; font-weight: bold; margin-bottom: 4px; }
+    .subtitle, .muted { color: #777; font-size: 14px; }
+    .user-box, .card, .message {
+      background: #fff;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.08);
+    }
+    .section { margin-bottom: 30px; }
+    .section-title { font-size: 21px; font-weight: bold; margin-bottom: 6px; }
+    .section-subtitle { color: #888; font-size: 13px; margin-bottom: 12px; }
+    .carousel {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      scroll-behavior: smooth;
+      padding: 2px 6% 8px 0;
+      scrollbar-width: none;
+    }
+    .carousel::-webkit-scrollbar { display: none; }
+    .slide { flex: 0 0 91%; scroll-snap-align: start; }
+    .product-name { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
+    .description, .info { color: #666; line-height: 1.55; margin-bottom: 7px; }
+    .summary { margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee; font-weight: bold; }
+    .dots { display: flex; justify-content: center; gap: 7px; margin-top: 10px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #d0d0d0; }
+    .dot.active { width: 9px; height: 9px; background: #06c755; }
+    .status {
+      display: inline-block;
+      border-radius: 20px;
+      padding: 5px 10px;
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    .status-open { color: #08883b; background: #eaf8ef; }
+    .status-closed { color: #666; background: #eee; }
+    .status-draft { color: #795c00; background: #fff5c7; }
+    .success { color: #0a8f3d; font-weight: bold; }
+    .error { color: #c62828; font-weight: bold; }
+    button {
+      width: 100%;
+      margin-top: 12px;
+      padding: 13px;
+      border: 0;
+      border-radius: 9px;
+      background: #06c755;
+      color: #fff;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .secondary { background: #888; }
+    .danger { background: #c62828; }
+    .admin-button { background: #263238; }
+    .outline {
+      background: #fff;
+      color: #333;
+      border: 1px solid #ccc;
+    }
+    label { display:block; font-weight:bold; margin-top:12px; margin-bottom:6px; }
+    input, textarea, select {
+      width:100%;
+      padding:12px;
+      font-size:16px;
+      border:1px solid #ccc;
+      border-radius:8px;
+      background:#fff;
+    }
+    textarea { min-height:90px; resize:vertical; }
+    .admin-row {
+      border-top:1px solid #eee;
+      padding-top:14px;
+      margin-top:14px;
+    }
+    .admin-actions {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+    }
+    .admin-actions button { margin-top:8px; }
+    .qty {
+      font-size:22px;
+      text-align:center;
+    }
+    .product-image {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      background: #eee;
+    }
+    .image-preview-box {
+      margin-top: 10px;
+      display: none;
+    }
+    .image-preview-box img {
+      width: 100%;
+      max-height: 320px;
+      object-fit: contain;
+      border-radius: 12px;
+      background: #f4f4f4;
+    }
+    .file-input {
+      background: #fff;
+    }
+    iframe#gasPostFrame {
+      width:0; height:0; border:0; position:absolute; left:-9999px;
+    }
+  
+    /* ===== 正式版 UI 微調 ===== */
+    :root {
+      --gb-green: #06c755;
+      --gb-green-dark: #049b43;
+      --gb-green-soft: #eef9f2;
+      --gb-green-soft-2: #f7fcf8;
+      --gb-line: #d7e9dd;
+      --gb-text: #24342b;
+      --gb-muted: #6f7f75;
     }
 
-    return outputApiResult(
-      result,
-      callback
-    );
+    body {
+      background: #f2faf4;
+      color: var(--gb-text);
+    }
 
-  } catch (error) {
-    return outputApiResult(
-      {
-        success: false,
-        message:
-          error && error.message
-            ? error.message
-            : String(error)
-      },
-      callback
-    );
-  }
+    .container {
+      max-width: 680px;
+    }
+
+    .header {
+      padding: 4px 2px 12px;
+      border-bottom: 1px solid var(--gb-line);
+      margin-bottom: 14px;
+    }
+
+    .user-box {
+      background: var(--gb-green-soft);
+      border: 1px solid #cfe8d7;
+      box-shadow: none;
+    }
+
+    .login-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: #fff;
+      color: var(--gb-green-dark);
+      font-size: 13px;
+      font-weight: 700;
+      border: 1px solid #cfe8d7;
+    }
+
+    .login-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--gb-green);
+    }
+
+    .section-title {
+      margin-top: 22px;
+      margin-bottom: 12px;
+      padding: 0 2px 10px;
+      border-bottom: 1px solid var(--gb-line);
+      color: var(--gb-text);
+      font-weight: 800;
+    }
+
+    .card,
+    .message {
+      border: 1px solid #e1eee5;
+      box-shadow: 0 4px 16px rgba(41, 96, 59, .05);
+    }
+
+    #adminPanel,
+    #adminFormPanel {
+      margin-top: 22px;
+      padding-top: 2px;
+    }
+
+    #adminPanel .section-title,
+    #adminFormPanel .section-title {
+      color: var(--gb-green-dark);
+    }
+
+    .copy-id-row {
+      display: none;
+      margin-top: 10px;
+    }
+
+    .copy-id-row.show {
+      display: block;
+    }
+
+    .saving-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(239, 249, 242, .91);
+      backdrop-filter: blur(3px);
+    }
+
+    .saving-overlay.show {
+      display: flex;
+    }
+
+    .saving-box {
+      width: min(360px, 90vw);
+      padding: 24px;
+      text-align: center;
+      background: #fff;
+      border: 1px solid var(--gb-line);
+      border-radius: 18px;
+      box-shadow: 0 12px 38px rgba(31, 92, 49, .15);
+    }
+
+    .saving-spinner {
+      width: 42px;
+      height: 42px;
+      margin: 0 auto 14px;
+      border: 4px solid #dceee2;
+      border-top-color: var(--gb-green);
+      border-radius: 50%;
+      animation: gbSpin .9s linear infinite;
+    }
+
+    @keyframes gbSpin {
+      to { transform: rotate(360deg); }
+    }
+
+    button:disabled,
+    input:disabled,
+    textarea:disabled,
+    select:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+
+    /* ===== 開團 / 修改團購 Modal ===== */
+    #adminFormPanel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 8000;
+      margin: 0 !important;
+      padding: 18px 12px !important;
+      background: rgba(25, 48, 34, .42);
+      backdrop-filter: blur(3px);
+      overflow-y: auto;
+    }
+
+    #adminFormPanel.show {
+      display: flex !important;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    .admin-form-modal {
+      width: min(620px, 100%);
+      margin: 20px auto 40px;
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 18px 54px rgba(24, 68, 39, .22);
+      overflow: hidden;
+    }
+
+    .admin-form-modal-header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px;
+      background: #f5fbf7;
+      border-bottom: 1px solid var(--gb-line);
+    }
+
+    .admin-form-modal-header .section-title {
+      margin: 0;
+      padding: 0;
+      border-bottom: 0;
+    }
+
+    .modal-close-button {
+      width: 38px;
+      height: 38px;
+      min-width: 38px;
+      padding: 0;
+      border-radius: 50%;
+      font-size: 22px;
+      line-height: 1;
+      background: #fff;
+      color: #52665a;
+      border: 1px solid var(--gb-line);
+    }
+
+    .admin-form-modal-body {
+      padding: 18px;
+    }
+
+    .admin-form-actions {
+      position: sticky;
+      bottom: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding-top: 16px;
+      background: #fff;
+    }
+
+    body.modal-open {
+      overflow: hidden;
+    }
+
+
+    .app-version {
+      margin-left: 8px;
+      font-size: 11px;
+      font-weight: 500;
+      color: #9aa5a0;
+      letter-spacing: .02em;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+
+    /* ===== 訂單 Modal ===== */
+    #orderPanel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 7800;
+      padding: 18px 12px;
+      background: rgba(25, 48, 34, .42);
+      backdrop-filter: blur(3px);
+      overflow-y: auto;
+    }
+
+    #orderPanel.show {
+      display: flex !important;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    .order-modal {
+      width: min(520px, 100%);
+      margin: 50px auto;
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 18px 54px rgba(24, 68, 39, .22);
+      overflow: hidden;
+    }
+
+    .order-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px;
+      background: #f5fbf7;
+      border-bottom: 1px solid var(--gb-line);
+    }
+
+    .order-modal-body { padding: 18px; }
+
+    .order-quantity-row {
+      display: grid;
+      grid-template-columns: 48px 1fr 48px;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .order-quantity-row button {
+      min-width: 48px;
+      height: 48px;
+      padding: 0;
+      font-size: 24px;
+      border-radius: 12px;
+    }
+
+    #orderQty {
+      text-align: center;
+      font-size: 22px;
+      font-weight: 700;
+      height: 48px;
+    }
+
+
+    .card-action-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .card-action-row button {
+      width: 100%;
+      margin: 0;
+    }
+
+
+    /* ===== 跟團名單 Modal ===== */
+    #participantsPanel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 7850;
+      padding: 18px 12px;
+      background: rgba(25, 48, 34, .42);
+      backdrop-filter: blur(3px);
+      overflow-y: auto;
+    }
+
+    #participantsPanel.show {
+      display: flex !important;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    .participants-modal {
+      width: min(520px, 100%);
+      margin: 50px auto;
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 18px 54px rgba(24, 68, 39, .22);
+      overflow: hidden;
+    }
+
+    .participants-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px;
+      background: #f5fbf7;
+      border-bottom: 1px solid var(--gb-line);
+    }
+
+    .participants-summary {
+      display: grid;
+      grid-template-columns: minmax(0, .8fr) minmax(0, .8fr) minmax(0, 1.4fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .participants-summary-box {
+      min-width: 0;
+      padding: 12px 6px;
+      border-radius: 14px;
+      background: #f3faf5;
+      text-align: center;
+    }
+
+    .participants-summary-number {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--gb-green-dark);
+    }
+
+    .participants-summary-number.amount {
+      font-size: clamp(19px, 6vw, 22px);
+      overflow-wrap: anywhere;
+    }
+
+    .admin-panel-heading {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .admin-role-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: #eef8f1;
+      color: #246b3f;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .admin-panel-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+      margin-bottom: 12px;
+    }
+
+    .admin-panel-actions button {
+      width: 100%;
+      margin: 0;
+    }
+
+    .admin-view-tabs {
+      display: none;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      margin-bottom: 12px;
+      padding: 4px;
+      border-radius: 13px;
+      background: #f1f5f2;
+    }
+
+    .admin-view-tabs.show {
+      display: grid;
+    }
+
+    .admin-view-tab {
+      min-width: 0;
+      padding: 9px 4px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: #617369;
+      font-size: 12px;
+      box-shadow: none;
+    }
+
+    .admin-view-tab.active,
+    .admin-view-tab:disabled {
+      background: #fff;
+      color: #246b3f;
+      opacity: 1;
+      box-shadow: 0 2px 8px rgba(32, 78, 49, .08);
+    }
+
+    .participants-list {
+      border-top: 1px solid var(--gb-line);
+    }
+
+    .participant-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 2px;
+      border-bottom: 1px solid #edf3ef;
+    }
+
+    .participant-main {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .participant-name {
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .participant-line-name {
+      color: #2563eb;
+      font-weight: 800;
+    }
+
+    .participant-source {
+      color: #7a8880;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .participant-qty {
+      flex: 0 0 auto;
+      font-weight: 800;
+      color: var(--gb-green-dark);
+    }
+
+
+    .order-quantity-row button:disabled,
+    #orderQty:disabled,
+    #orderSaveButton:disabled {
+      opacity: .42;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    #orderLoadingHint {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #f3f6f4;
+      color: #65736b;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+
+    .order-type-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .order-type-row button {
+      width: 100%;
+      margin: 0;
+    }
+
+    .order-type-row button.active {
+      background: var(--gb-green-dark);
+      color: #fff;
+      border-color: var(--gb-green-dark);
+    }
+
+    #proxyNameWrap {
+      margin-top: 12px;
+    }
+
+
+    .card-share-row {
+      margin-top: 8px;
+    }
+
+    .card-share-row button {
+      width: 100%;
+      margin: 0;
+    }
+
+
+    .home-tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 0 0 10px;
+      margin-bottom: 4px;
+      scrollbar-width: none;
+    }
+
+    .home-tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .home-tab {
+      flex: 0 0 auto;
+      border: 1px solid #d7e7dc;
+      background: #f5faf6;
+      color: #617369;
+      border-radius: 999px;
+      padding: 9px 15px;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .home-tab.active {
+      background: #246b3f;
+      border-color: #246b3f;
+      color: #fff;
+    }
+
+    .home-pane {
+      display: none;
+    }
+
+    .home-pane.active {
+      display: block;
+    }
+
+    .card-topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .status-bubble {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 27px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .status-bubble.open {
+      background: #e7f6ec;
+      color: #246f43;
+    }
+
+    .status-bubble.closed {
+      background: #eef1ef;
+      color: #647168;
+    }
+
+    .status-bubble.suspended {
+      background: #fff0e8;
+      color: #a45427;
+    }
+
+    .card-owner {
+      min-width: 0;
+      color: #7a8880;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.3;
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+
+    /* ===== 首頁上方：LINE / 群組 + 團購功能 ===== */
+    .home-toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .home-toolbar .user-box,
+    .home-toolbar #adminEntry {
+      min-width: 0;
+      margin: 0;
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid #e2ece5;
+      background: rgba(255,255,255,.92);
+      box-shadow: 0 4px 14px rgba(35,82,51,.05);
+    }
+
+    .home-toolbar #adminEntry .section-title {
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+
+    .home-toolbar #adminEntry > div:last-child {
+      gap: 7px !important;
+    }
+
+    .home-toolbar #adminEntry button {
+      min-height: 40px;
+      padding: 8px 7px;
+      font-size: 12px;
+      border-radius: 11px;
+    }
+
+    .home-toolbar .user-box {
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    /* 三個首頁頁簽固定吃滿整個寬度，不使用橫向滑動 */
+    .home-tabs {
+      display: grid !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px !important;
+      width: 100%;
+      overflow: visible !important;
+      padding: 0 0 10px !important;
+      margin-bottom: 6px !important;
+    }
+
+    .home-tab {
+      width: 100%;
+      min-width: 0;
+      padding: 10px 4px !important;
+      text-align: center;
+      border-radius: 12px !important;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 390px) {
+      .home-toolbar {
+        gap: 7px;
+      }
+
+      .home-toolbar .user-box,
+      .home-toolbar #adminEntry {
+        padding: 10px 8px;
+      }
+
+      .home-toolbar #adminEntry > div:last-child {
+        grid-template-columns: 1fr !important;
+      }
+
+      .home-tab {
+        font-size: 12px;
+      }
+    }
+
+
+    .my-host-stats {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #edf2ee;
+      color: #7a8880;
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .my-host-stats strong {
+      color: #56675d;
+      font-weight: 800;
+    }
+
+
+    .order-mode-wrap {
+      margin-top: 12px;
+    }
+
+    .order-mode-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 4px;
+      border-radius: 14px;
+      background: #f1f5f2;
+    }
+
+    .order-mode-tab {
+      padding: 9px 8px;
+      border-radius: 10px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 800;
+      color: #819087;
+      background: transparent;
+      user-select: none;
+      cursor: pointer;
+      border: 0;
+    }
+
+    .order-mode-tab.active {
+      background: #ffffff;
+      color: #246b3f;
+      box-shadow: 0 2px 8px rgba(32, 78, 49, .08);
+    }
+
+
+    .order-mode-tab:disabled {
+      cursor: default;
+      opacity: 1;
+    }
+
+
+    .toolbar-actions {
+      grid-template-columns: minmax(0, 1fr) !important;
+      gap: 8px !important;
+    }
+
+    .toolbar-actions button {
+      width: 100%;
+      min-width: 0;
+      white-space: nowrap;
+      word-break: keep-all;
+      overflow: hidden;
+      text-overflow: clip;
+      font-size: 11.5px !important;
+      padding: 8px 4px !important;
+      line-height: 1.15;
+    }
+
+    @media (max-width: 360px) {
+      .toolbar-actions button {
+        font-size: 10.5px !important;
+        padding-left: 2px !important;
+        padding-right: 2px !important;
+      }
+    }
+
+    .product-mode-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+      padding: 4px;
+      border-radius: 12px;
+      background: #f1f5f2;
+    }
+
+    .product-mode-tab {
+      min-height: 42px;
+      border: 0;
+      border-radius: 9px;
+      background: transparent;
+      color: #65736b;
+      font-weight: 800;
+    }
+
+    .product-mode-tab.active {
+      background: #fff;
+      color: #246b3f;
+      box-shadow: 0 2px 8px rgba(32, 78, 49, .08);
+    }
+
+    .category-editor-list,
+    .category-order-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .category-editor-row {
+      padding: 12px;
+      border: 1px solid #d7e7dc;
+      border-radius: 12px;
+      background: #f7fbf8;
+    }
+
+    .category-editor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+    }
+
+    .category-editor-grid .wide {
+      grid-column: 1 / -1;
+    }
+
+    .category-editor-row label {
+      margin-top: 0;
+    }
+
+    .category-editor-remove {
+      width: 100%;
+      margin-top: 9px;
+    }
+
+    .category-editor-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+      margin-top: 10px;
+    }
+
+    .category-editor-actions button {
+      width: 100%;
+      margin: 0;
+    }
+
+    .category-order-group {
+      overflow: hidden;
+      border: 1px solid #d7e7dc;
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .category-order-title {
+      padding: 10px 12px;
+      background: #eef9f2;
+      color: #246b3f;
+      font-weight: 800;
+    }
+
+    .category-order-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 11px 12px;
+    }
+
+    .category-order-row + .category-order-row {
+      border-top: 1px solid #edf3ef;
+    }
+
+    .category-order-name {
+      font-weight: 800;
+    }
+
+    .category-order-price {
+      margin-top: 3px;
+      color: #6f7f75;
+      font-size: 12px;
+    }
+
+    .category-order-stepper {
+      display: grid;
+      grid-template-columns: 38px 46px 38px;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .category-order-stepper button {
+      width: 38px;
+      min-width: 38px;
+      padding: 9px 0;
+    }
+
+    .category-order-stepper input {
+      width: 46px;
+      min-width: 0;
+      padding: 9px 4px;
+      text-align: center;
+    }
+
+    .category-order-note {
+      margin-top: 8px;
+      color: #6f7f75;
+      font-size: 12px;
+    }
+
+    .participant-item-lines {
+      display: grid;
+      gap: 4px;
+      margin-top: 5px;
+      color: #26332b;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .participant-item-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: baseline;
+    }
+
+    .participant-item-subtotal,
+    .participant-total-amount {
+      color: #26332b;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .participant-item-line.single-subtotal {
+      justify-content: flex-end;
+    }
+
+    .participant-total-amount {
+      margin-top: 5px;
+      text-align: right;
+    }
+
+    @media (max-width: 380px) {
+      .category-editor-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .category-editor-grid .wide {
+        grid-column: auto;
+      }
+
+      .category-order-row {
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+
+      .category-order-stepper {
+        grid-template-columns: 36px 42px 36px;
+        gap: 4px;
+      }
+
+      .category-order-stepper button {
+        width: 36px;
+        min-width: 36px;
+      }
+
+      .category-order-stepper input {
+        width: 42px;
+      }
+    }
+
+</style>
+</head>
+
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.31</span></div>
+    <div class="subtitle">LINE 團購小幫手</div>
+  </div>
+
+  <div id="homeToolbar" class="home-toolbar">
+    <div id="userBox" class="user-box">正在確認 LINE 身分...</div>
+
+    <div id="adminEntry" style="display:none;" class="section">
+      <div class="toolbar-actions" style="display:grid;grid-template-columns:1fr;gap:10px;">
+        <button onclick="openAdminPanel()">開團／團主管理區</button>
+      </div>
+      <div id="myHostStats" class="my-host-stats">
+        <div>我的主揪開團中：<strong>--</strong></div>
+        <div>我的主揪已結案：<strong>--</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="groupAccessMessage" class="message" style="display:none;">
+    <strong id="groupAccessTitle">請從 LINE 群組的團購入口開啟</strong>
+    <div id="groupAccessText" class="muted" style="margin-top:6px;">
+      回到 LINE 群組輸入「團購」，再點 Bot 回傳的專屬入口。
+    </div>
+  </div>
+
+  <div id="homePanel">
+
+    <div class="section">
+      <div class="home-tabs">
+        <button class="home-tab active" data-tab="open" onclick="switchHomeTab('open')">開團中</button>
+        <button class="home-tab" data-tab="closed" onclick="switchHomeTab('closed')">近期關閉</button>
+        <button class="home-tab" data-tab="suspended" onclick="switchHomeTab('suspended')">停權中</button>
+      </div>
+
+      <div id="openGroupBuySection" class="home-pane active">
+        <div class="section-subtitle">目前開放中的團購項目</div>
+        <div id="openLoading" class="message">正在載入團購資料...</div>
+        <div id="openCarousel" class="carousel" style="display:none;"></div>
+        <div id="openDots" class="dots" style="display:none;"></div>
+      </div>
+
+      <div id="closedGroupBuySection" class="home-pane">
+        <div class="section-subtitle">顯示近三個月已關閉的項目</div>
+        <div id="closedLoading" class="message">正在載入歷史資料...</div>
+        <div id="closedCarousel" class="carousel" style="display:none;"></div>
+        <div id="closedDots" class="dots" style="display:none;"></div>
+      </div>
+
+      <div id="suspendedGroupBuySection" class="home-pane">
+        <div class="section-subtitle">目前暫停中的團購項目</div>
+        <div id="suspendedLoading" class="message">正在載入停權資料...</div>
+        <div id="suspendedCarousel" class="carousel" style="display:none;"></div>
+        <div id="suspendedDots" class="dots" style="display:none;"></div>
+      </div>
+    </div>
+
+  </div>
+
+
+  <div id="orderPanel" onclick="handleOrderModalBackdrop(event)">
+    <div class="order-modal" role="dialog" aria-modal="true" aria-labelledby="orderProductName">
+      <div class="order-modal-header">
+        <div>
+          <div class="section-kicker">我的訂單</div>
+          <div id="orderProductName" class="product-name" style="margin:0;"></div>
+        </div>
+        <button type="button" class="modal-close-button" onclick="closeOrder()">×</button>
+      </div>
+
+      <div class="order-modal-body">
+        <div id="orderDescription" class="description"></div>
+        <div id="singleOrderPriceInfo" class="info">單價：<strong id="orderPrice"></strong> / <span id="orderUnit"></span></div>
+        <div class="info">截止：<span id="orderEndAt"></span></div>
+        <div class="info">
+          目前團購：
+          <strong id="orderPeopleCount">0</strong> 人｜
+          <strong id="orderTotalQuantity">0</strong>
+          <span id="orderSummaryUnit"></span>
+        </div>
+
+        <div class="order-mode-wrap">
+          <div class="order-mode-tabs" aria-label="下單方式">
+            <button id="orderModeSelfTab" type="button" class="order-mode-tab active" onclick="setOrderMode('SELF')">
+              本人下單
+            </button>
+            <button id="orderModeProxyTab" type="button" class="order-mode-tab" onclick="setOrderMode('PROXY')">
+              代人下單
+            </button>
+          </div>
+        </div>
+
+        <div id="proxyNameWrap" style="display:none;">
+          <label for="proxyRecipient">指定給已登記的當事人</label>
+          <select id="proxyRecipient" onchange="selectProxyRecipient()">
+            <option value="">手動填寫姓名（尚未綁定）</option>
+          </select>
+          <div class="muted" style="margin:6px 0;">綁定後本人可查看及修改；本人實際修改訂購內容前，會保留代填註記。</div>
+          <label for="proxyOrderName">代訂姓名</label>
+          <input id="proxyOrderName" type="text" maxlength="40" placeholder="例如：王小明">
+          <button type="button" class="outline" style="margin-top:8px;" onclick="resetProxyRecipient()">換另一位代訂者</button>
+        </div>
+
+        <div id="selfOrderSelectWrap" style="display:none;">
+          <label for="selfOrderSelect">選擇要查看或修改的訂單</label>
+          <select id="selfOrderSelect" onchange="selectSelfOrder()"></select>
+        </div>
+        <div id="orderAttributionHint" class="muted" style="margin-top:8px;"></div>
+
+        <div id="singleOrderControls">
+          <label for="orderQty" style="margin-top:16px;">我要的總數量</label>
+          <div class="order-quantity-row">
+            <button id="orderMinusButton" type="button" class="outline" onclick="changeOrderQuantity(-1)">−</button>
+            <input type="number" id="orderQty" min="0" max="9999" step="1" value="0" inputmode="numeric" oninput="updateOrderTotal()">
+            <button id="orderPlusButton" type="button" onclick="changeOrderQuantity(1)">＋</button>
+          </div>
+          <div class="muted">請輸入你目前要的總數量；輸入 0 代表取消此訂單。</div>
+        </div>
+
+        <div id="categoryOrderControls" style="display:none;">
+          <label style="margin-top:16px;">選擇各次類別數量</label>
+          <div id="categoryOrderList" class="category-order-list"></div>
+          <div class="category-order-note">所有次類別數量都是 0 時，代表取消此訂單。</div>
+        </div>
+
+        <div id="orderLoadingHint">訂單讀取中，請稍候…</div>
+        <div class="muted" style="margin-top:6px;">
+          本人訂單：同一位使用者在同一團只保留一筆；再次儲存會更新原本數量。<br>
+          代人下單：可替不同姓名分別建立訂單；相同姓名再次儲存會更新該筆代填訂單。
+        </div>
+        <div class="summary">預估金額：<span id="orderTotal">$0</span></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px;">
+          <button id="orderSaveButton" onclick="confirmOrder()">儲存訂單</button>
+          <button type="button" class="secondary" onclick="closeOrder()">取消</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="adminPanel" style="display:none;">
+    <div class="admin-panel-heading">
+      <div class="section-title" id="adminPanelTitle" style="margin:0;">開團／團主管理區</div>
+      <div id="adminRoleBadge" class="admin-role-badge">權限確認中…</div>
+    </div>
+
+    <div class="admin-panel-actions">
+      <button onclick="openCreateForm()">＋ 建立新團</button>
+      <button class="secondary" onclick="closeAdminPanel()">返回首頁</button>
+    </div>
+
+    <div id="adminViewTabs" class="admin-view-tabs">
+      <button id="adminViewMine" class="admin-view-tab active" type="button" onclick="setAdminManagementView('mine')">我的團購</button>
+      <button id="adminViewPending" class="admin-view-tab" type="button" onclick="setAdminManagementView('pending')">待審核</button>
+      <button id="adminViewAll" class="admin-view-tab" type="button" onclick="setAdminManagementView('all')">全部團購</button>
+    </div>
+
+    <div id="adminList" class="message">正在載入管理資料...</div>
+  </div>
+
+
+  <div id="adminFormPanel" style="display:none;" onclick="handleAdminModalBackdrop(event)">
+    <div class="admin-form-modal" role="dialog" aria-modal="true" aria-labelledby="adminFormTitle">
+      <div class="admin-form-modal-header">
+        <div class="section-title" id="adminFormTitle">新增團購</div>
+        <button type="button" class="modal-close-button" onclick="closeAdminForm()" aria-label="關閉">×</button>
+      </div>
+
+      <div class="admin-form-modal-body">
+        <input type="hidden" id="adminBuyId">
+
+        <label>商品名稱</label>
+        <input id="adminName" type="text" placeholder="請輸入商品名稱">
+
+        <label>商品說明</label>
+        <textarea id="adminDescription"></textarea>
+
+        <label>商品類型</label>
+        <div class="product-mode-tabs">
+          <button id="adminSingleModeTab" class="product-mode-tab active" type="button" onclick="setAdminProductMode('SINGLE')">單一商品</button>
+          <button id="adminCategoryModeTab" class="product-mode-tab" type="button" onclick="setAdminProductMode('CATEGORY')">主類別／次類別</button>
+        </div>
+        <input id="adminProductMode" type="hidden" value="SINGLE">
+
+        <div id="adminSingleProductFields">
+          <label>單價</label>
+          <input id="adminPrice" type="number" min="0" step="1">
+
+          <label>單位</label>
+          <input id="adminUnit" type="text" placeholder="例如：盒、顆、條">
+        </div>
+
+        <div id="adminCategoryFields" style="display:none;">
+          <label style="margin-top:16px;">分類商品</label>
+          <div class="muted">新增次類別會沿用上一筆的主類別、單價與單位。</div>
+          <div id="adminCategoryItems" class="category-editor-list"></div>
+          <div class="category-editor-actions">
+            <button type="button" class="outline" onclick="addAdminMainCategory()">＋ 新增主類別</button>
+            <button type="button" class="outline" onclick="addAdminSubCategory()">＋ 新增次類別</button>
+          </div>
+        </div>
+
+        <label>商品圖片</label>
+        <input
+          id="adminImageFile"
+          class="file-input"
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          onchange="previewAdminImage(this)"
+        >
+
+        <div id="adminImagePreviewBox" class="image-preview-box">
+          <img id="adminImagePreview" alt="商品圖片預覽">
+        </div>
+
+        <input id="adminImageUrl" type="hidden">
+
+        <div class="muted" style="margin-top:8px;">
+          選擇圖片後會先預覽；儲存時自動上傳到 Google Drive。
+          修改團購時若不重新選照片，會保留原圖片。
+        </div>
+
+        <label>開始時間</label>
+        <input id="adminStartAt" type="datetime-local">
+
+        <label>預定截止時間</label>
+        <input id="adminEndAt" type="datetime-local">
+
+        <input id="adminStatus" type="hidden" value="PENDING">
+        <div id="newStatusLabel" class="muted" style="margin-top:12px;">
+          新建立的團購會先送出審核，通過後才會出現在「開團中」。
+        </div>
+
+        <div class="admin-form-actions">
+          <button id="adminSaveButton" onclick="saveAdminForm()">儲存</button>
+          <button type="button" class="secondary" onclick="closeAdminForm()">取消</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+
+<div id="participantsPanel" onclick="handleParticipantsBackdrop(event)">
+  <div class="participants-modal" role="dialog" aria-modal="true" aria-labelledby="participantsTitle">
+    <div class="participants-modal-header">
+      <div>
+        <div class="section-kicker">跟團名單</div>
+        <div id="participantsTitle" class="product-name" style="margin:0;">團購品項</div>
+      </div>
+      <button type="button" class="modal-close-button" onclick="closeParticipants()">×</button>
+    </div>
+
+    <div style="padding:18px;">
+      <div class="participants-summary">
+        <div class="participants-summary-box">
+          <div id="participantsPeopleCount" class="participants-summary-number">0</div>
+          <div class="muted">跟團人數</div>
+        </div>
+        <div class="participants-summary-box">
+          <div id="participantsTotalQuantity" class="participants-summary-number">0</div>
+          <div class="muted">總數量</div>
+        </div>
+        <div class="participants-summary-box">
+          <div id="participantsTotalAmount" class="participants-summary-number amount">$0</div>
+          <div class="muted">總金額</div>
+        </div>
+      </div>
+
+      <div id="participantsViewTabs" style="display:none;gap:8px;margin-bottom:14px;" role="group" aria-label="跟團名單顯示方式">
+        <button id="participantsByPerson" type="button" onclick="setParticipantsView('person')">依訂購者</button>
+        <button id="participantsByProduct" type="button" onclick="setParticipantsView('product')">依商品</button>
+      </div>
+
+      <div id="participantsLoading" class="message">
+        正在讀取跟團名單...
+      </div>
+
+      <div id="participantsPaymentSummary" class="muted" style="margin-bottom:10px;"></div>
+      <div id="participantsList" class="participants-list"></div>
+      <div id="cancelledPaymentOrders"></div>
+    </div>
+  </div>
+</div>
+
+<div id="savingOverlay" class="saving-overlay" aria-live="polite">
+  <div class="saving-box">
+    <div class="saving-spinner"></div>
+    <div id="savingTitle" style="font-size:20px;font-weight:800;">儲存中…</div>
+    <div id="savingMessage" class="muted" style="margin-top:8px;">
+      正在寫入資料，請勿重複操作。
+    </div>
+  </div>
+</div>
+
+<iframe id="gasPostFrame" name="gasPostFrame"></iframe>
+
+<script>
+const LIFF_ID = '2011825033-7byocb0b';
+
+const API_URL =
+  'https://script.google.com/macros/s/AKfycbyL7dyXlrGU9PNq6jqqcnXrCXKK3Ouhct68vCo2W9qFYzyH2R2SL9y5zCWuiKbDcva1/exec';
+
+const LOAD_TIMEOUT_MS = 20000;
+
+let currentUser = null;
+let currentGroupKey = '';
+let currentGroupSessionToken = '';
+let currentGroupName = '';
+let guestMode = false;
+let currentGuestToken = '';
+let currentBuy = null;
+let orderDataReady = false;
+let currentOrderType = 'SELF';
+let selectedOrderId = '';
+let loadedRecipientUserId = '';
+let proxyUsersLoaded = false;
+let proxyUsers = [];
+
+async function loadProxyUsers() {
+  if (proxyUsersLoaded || guestMode) return;
+  const result = await adminPost('proxyOrderUsers', {});
+  if (!result.success) throw new Error(result.message || '無法讀取使用者');
+  proxyUsers = Array.isArray(result.users) ? result.users : [];
+  const select = document.getElementById('proxyRecipient');
+  select.innerHTML = '<option value="">手動填寫姓名（尚未綁定）</option>';
+  proxyUsers.forEach(user => {
+    const option = document.createElement('option');
+    option.value = user.userId;
+    option.textContent = user.lineName + '（' + user.userId.slice(-6) + '）';
+    select.appendChild(option);
+  });
+  proxyUsersLoaded = true;
 }
 
-
-function requireOwnedGroupSession_(groupSessionToken, identity) {
-  const groupSession = requireGroupSession_(groupSessionToken);
-
-  if (
-    !identity
-    || String(groupSession.userId || '').trim()
-      !== String(identity.sub || '').trim()
-  ) {
-    throw new Error('群組工作階段與目前使用者不一致');
+async function selectProxyRecipient() {
+  const recipient = document.getElementById('proxyRecipient').value;
+  if (loadedRecipientUserId && recipient !== loadedRecipientUserId) {
+    document.getElementById('proxyRecipient').value = loadedRecipientUserId;
+    alert('這筆訂單已綁定當事人，不能改綁其他人');
+    return;
   }
-
-  return groupSession;
+  const user = proxyUsers.find(row => row.userId === recipient);
+  if (user) document.getElementById('proxyOrderName').value = user.lineName;
+  document.getElementById('proxyOrderName').readOnly = !!recipient;
+  // 已讀取的手動代填訂單可直接綁定，不另建一筆訂單。
+  if (!selectedOrderId) await loadSelectedOrderQuantity();
 }
 
+function resetProxyRecipient() {
+  if (!orderDataReady) return;
+  selectedOrderId = '';
+  loadedRecipientUserId = '';
+  document.getElementById('proxyRecipient').value = '';
+  document.getElementById('proxyOrderName').value = '';
+  document.getElementById('proxyOrderName').readOnly = false;
+  document.getElementById('orderQty').value = 0;
+  resetCategoryOrderQuantities();
+  updateOrderTotal();
+  document.getElementById('proxyOrderName').focus();
+}
 
-function doPost(e) {
-  // LINE Messaging API webhook
-  if (isLineWebhookRequest_(e)) {
-    return handleLineWebhook_(e);
-  }
+async function selectSelfOrder() {
+  selectedOrderId = document.getElementById('selfOrderSelect').value;
+  await loadSelectedOrderQuantity();
+}
+let currentOrderItems = [];
+let adminProductMode = 'SINGLE';
+let adminCategoryRowSequence = 0;
+let isAdmin = false;
+let canUseGroupDataTools = false;
+let currentManagementRole = 'GROUP_BUY_ADMIN';
+let canManageCurrentGroup = false;
+let currentAdminView = 'mine';
 
-  const params =
-    e && e.parameter
-      ? e.parameter
-      : {};
+let adminImageData = '';
+let adminImageOriginalUrl = '';
 
-  const action =
-    params.action || '';
+window.currentGroupBuys = [];
+window.currentClosedGroupBuys = [];
+window.adminGroupBuys = [];
 
-  const idToken =
-    params.idToken || '';
+const pendingAdminRequests = {};
 
-  const requestId =
-    params.requestId || '';
+window.onload = function () {
+  initLiff();
+};
 
-  const parentOrigin =
-    params.parentOrigin || '';
 
-  const groupSessionToken =
-    params.groupSessionToken || '';
-
-  let result;
+async function initLiff() {
+  const userBox =
+    document.getElementById('userBox');
 
   try {
-    const identity =
-      verifyLineIdToken(idToken);
+    await liff.init({
+      liffId: LIFF_ID
+    });
+
+    const initialParams =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    const initialShareToken =
+      String(
+        initialParams.get('share') || ''
+      ).trim();
+
+    if (!liff.isLoggedIn()) {
+      if (initialShareToken) {
+        liff.login({
+          redirectUri:
+            window.location.href
+        });
+        return;
+      }
+
+      userBox.innerHTML =
+        '目前尚未登入 LINE';
+      return;
+    }
+
+    currentUser =
+      await liff.getProfile();
+
+    userBox.innerHTML = `
+      <div class="login-chip">
+        <span class="login-dot"></span>
+        LINE 已登入
+      </div>
+      <div style="margin-top:8px;">
+        你好，<strong>${escapeHtml(currentUser.displayName)}</strong>
+      </div>
+    `;
+
+    // 先完成 Users 同步，再進行群組驗證或外部分享。
+    // syncUser 與其他 POST 共用同一個隱藏 iframe，
+    // 若不等待完成，後續 POST 可能覆蓋前一個請求。
+    const syncResult =
+      await syncCurrentUser();
 
     if (
-      !identity
+      !syncResult
       ||
-      !identity.sub
+      !syncResult.success
     ) {
-      throw new Error(
-        'LINE 身分驗證失敗'
+      console.warn(
+        'Users 尚未同步完成，仍繼續載入系統',
+        syncResult
       );
     }
 
-    const payload =
-      params.payload
-        ? JSON.parse(
-            params.payload
-          )
-        : {};
+    // 官方規格：LIFF URL 的自訂參數要等 liff.init() 完成後再讀
+    const urlParams =
+      new URLSearchParams(
+        window.location.search
+      );
 
-    switch (action) {
 
-      case 'syncUser':
-        result = upsertUser_(
-          identity,
-          payload
-        );
-        break;
+    currentGuestToken =
+      String(
+        urlParams.get('share') || ''
+      ).trim();
 
-      case 'resolveGroupContext':
-        result =
-          createGroupSession_(
-            String(
-              payload.groupKey || ''
-            ).trim(),
-            identity.sub
-          );
-        break;
+    if (currentGuestToken) {
+      guestMode = true;
 
-      case 'systemAdminGetAccessOverview':
-        result =
-          getSystemAdminAccessOverview_(
-            identity.sub
-          );
-        break;
+      await loadGuestSharedGroupBuy();
 
-      case 'proxyOrderUsers': {
-        requireOwnedGroupSession_(groupSessionToken, identity);
-        result = getProxyOrderUsers_(identity.sub);
-        break;
-      }
+      return;
+    }
 
-      case 'orderPaymentOverview':
-      case 'updateOrderPayment': {
-        let paymentGroupId;
-        let paymentPayload = Object.assign({}, payload);
-        const paymentIsGuest = !!String(payload.shareToken || '').trim();
-        if (paymentIsGuest) {
-          const context = requireGuestOpenGroupBuy_(payload.shareToken);
-          paymentGroupId = context.item.groupId;
-          paymentPayload.buyId = context.item.buyId;
-        } else {
-          const session = requireOwnedGroupSession_(groupSessionToken, identity);
-          paymentGroupId = session.groupId;
+    currentGroupKey =
+      String(
+        urlParams.get('g') || ''
+      ).trim();
+
+    if (!currentGroupKey) {
+      showGroupAccessError(
+        '請從 LINE 群組的團購入口開啟',
+        '回到 LINE 群組輸入「團購」，再點 Bot 回傳的專屬入口。'
+      );
+      return;
+    }
+
+    const groupResult =
+      await adminPost(
+        'resolveGroupContext',
+        {
+          groupKey:
+            currentGroupKey
         }
-        result = action === 'orderPaymentOverview'
-          ? getOrderPaymentOverview_(paymentPayload, identity, paymentGroupId, paymentIsGuest)
-          : updateOrderPayment_(paymentPayload, identity, paymentGroupId, paymentIsGuest);
-        break;
-      }
+      );
 
-      case 'systemAdminSaveGroupAdmin':
-        result =
-          saveGroupSuperAdmin_(
-            payload,
-            identity.sub
-          );
-        break;
+    if (
+      !groupResult
+      ||
+      !groupResult.success
+    ) {
+      showGroupAccessError(
+        '無法進入此群組團購',
+        groupResult
+        && groupResult.message
+          ? groupResult.message
+          : '請回 LINE 群組重新取得入口。'
+      );
+      return;
+    }
 
-      case 'adminCreateGroupBuy': {
-        const groupSession =
-          requireOwnedGroupSession_(
-            groupSessionToken,
-            identity
+    currentGroupSessionToken =
+      groupResult.sessionToken;
+
+    currentGroupName =
+      groupResult.groupName || '';
+
+    userBox.innerHTML += `
+      <div style="margin-top:8px;" class="muted">
+        群組：<strong>${escapeHtml(currentGroupName || 'LINE 群組')}</strong>
+      </div>
+
+    `;
+
+    checkAdminStatus();
+    loadOpenGroupBuys();
+    loadClosedGroupBuys();
+    loadSuspendedGroupBuys();
+
+  } catch (error) {
+    showGroupAccessError(
+      'LINE 身分或群組確認失敗',
+      error.message || String(error)
+    );
+  }
+}
+
+
+
+async function loadGuestSharedGroupBuy() {
+  const userBox =
+    document.getElementById(
+      'userBox'
+    );
+
+  const adminEntry =
+    document.getElementById(
+      'adminEntry'
+    );
+
+  const closedSection =
+    document.getElementById(
+      'closedGroupBuySection'
+    );
+
+  const openTitle =
+    document.getElementById(
+      'openGroupBuySectionTitle'
+    );
+
+  if (adminEntry) {
+    adminEntry.style.display =
+      'none';
+  }
+
+  if (closedSection) {
+    closedSection.style.display =
+      'none';
+  }
+
+  if (openTitle) {
+    openTitle.textContent =
+      '🛒 分享團購';
+  }
+
+  try {
+    const result =
+      await adminPost(
+        'guestGetGroupBuy',
+        {
+          shareToken:
+            currentGuestToken
+        }
+      );
+
+    if (
+      !result
+      ||
+      !result.success
+      ||
+      !result.data
+    ) {
+      throw new Error(
+        result && result.message
+          ? result.message
+          : '無法讀取分享團購'
+      );
+    }
+
+    window.currentGroupBuys =
+      [result.data];
+
+    if (userBox) {
+      userBox.innerHTML += `
+        <div style="margin-top:8px;" class="muted">
+          外部分享模式｜只顯示這一團
+          ${
+            result.sharerName
+              ? '｜分享者：' + escapeHtml(result.sharerName)
+              : ''
+          }
+        </div>
+      `;
+    }
+
+    const proxyButton =
+      document.getElementById(
+        'orderModeProxyTab'
+      );
+
+    const proxyWrap =
+      document.getElementById(
+        'proxyNameWrap'
+      );
+
+    if (proxyButton) {
+      proxyButton.style.display =
+        'none';
+    }
+
+    if (proxyWrap) {
+      proxyWrap.style.display =
+        'none';
+    }
+
+    renderCarousel(
+      window.currentGroupBuys,
+      'openCarousel',
+      'openDots',
+      'openLoading',
+      true
+    );
+
+  } catch (error) {
+    showGroupAccessError(
+      '無法開啟分享團購',
+      error.message
+      ||
+      String(error)
+    );
+  }
+}
+
+
+async function shareGroupBuyLink(
+  buyId
+) {
+  const item =
+    (
+      window.currentGroupBuys
+      ||
+      window.adminGroupBuys
+      ||
+      []
+    )
+      .find(row =>
+        String(row.buyId)
+        ===
+        String(buyId)
+      );
+
+  try {
+    setAdminBusy(
+      true,
+      '準備分享中…',
+      '正在建立你的專屬分享連結。'
+    );
+
+    const result =
+      await adminPost(
+        'createShareLink',
+        {
+          buyId:
+            buyId
+        }
+      );
+
+    setAdminBusy(false);
+
+    if (
+      !result
+      ||
+      !result.success
+      ||
+      !result.shareUrl
+    ) {
+      throw new Error(
+        result && result.message
+          ? result.message
+          : '無法產生分享連結'
+      );
+    }
+
+    const shareUrl =
+      result.shareUrl;
+
+    const name =
+      item && item.name
+        ? String(item.name)
+        : '好康團購';
+
+    const price =
+      item && item.price !== undefined
+        ? Number(item.price)
+        : '';
+
+    const unit =
+      item && item.unit
+        ? String(item.unit)
+        : '';
+
+    const priceText =
+      isCategoryGroupBuy(item)
+        ? (
+            '分類商品共'
+            +
+            item.items.length
+            +
+            '項'
+          )
+        : (
+            price !== ''
+              ? (
+                  price
+                  +
+                  '元'
+                  +
+                  (
+                    unit
+                      ? '/' + unit
+                      : ''
+                  )
+                )
+              : ''
           );
+
+    const shareText =
+      '分享好康團購【'
+      +
+      name
+      +
+      '】'
+      +
+      (
+        priceText
+          ? '，' + priceText
+          : ''
+      )
+      +
+      '，快來看看!!'
+      +
+      '\n\n'
+      +
+      shareUrl;
+
+    const canUseTargetPicker =
+      window.liff
+      &&
+      typeof liff.isApiAvailable === 'function'
+      &&
+      liff.isApiAvailable(
+        'shareTargetPicker'
+      )
+      &&
+      typeof liff.shareTargetPicker === 'function';
+
+    if (canUseTargetPicker) {
+      try {
+        const pickerResult =
+          await liff.shareTargetPicker([
+            {
+              type: 'text',
+              text: shareText
+            }
+          ]);
 
         if (
-          groupSession.userId
-          !==
-          String(identity.sub)
+          pickerResult
+          &&
+          pickerResult.status
+          === 'success'
         ) {
-          throw new Error(
-            '群組工作階段與目前使用者不一致'
-          );
+          return;
         }
 
-        result =
-          adminCreateGroupBuy(
-            payload,
-            identity.sub,
-            identity,
-            groupSession.groupId
-          );
-        break;
-      }
-
-      case 'adminUpdateGroupBuy': {
-        const groupSession =
-          requireOwnedGroupSession_(
-            groupSessionToken,
-            identity
-          );
-
-        result =
-          adminUpdateGroupBuy(
-            payload,
-            identity.sub,
-            groupSession.groupId
-          );
-        break;
-      }
-
-      case 'adminOpenGroupBuy': {
-        const groupSession =
-          requireOwnedGroupSession_(
-            groupSessionToken,
-            identity
-          );
-
-        result =
-          adminOpenGroupBuy(
-            payload.buyId,
-            identity.sub,
-            groupSession.groupId
-          );
-        break;
-      }
-
-      case 'adminCloseGroupBuy': {
-        const groupSession =
-          requireOwnedGroupSession_(
-            groupSessionToken,
-            identity
-          );
-
-        result =
-          adminCloseGroupBuy(
-            payload.buyId,
-            identity.sub,
-            groupSession.groupId
-          );
-        break;
-      }
-
-      case 'adminApproveGroupBuy': {
-        const groupSession =
-          requireOwnedGroupSession_(
-            groupSessionToken,
-            identity
-          );
-
-        result =
-          adminApproveGroupBuy(
-            payload.buyId,
-            identity.sub,
-            groupSession.groupId
-          );
-        break;
-      }
-
-      case 'adminSuspendGroupBuy': {
-        const groupSession =
-          requireOwnedGroupSession_(
-            groupSessionToken,
-            identity
-          );
-
-        result =
-          adminSuspendGroupBuy(
-            payload.buyId,
-            identity.sub,
-            groupSession.groupId
-          );
-        break;
-      }
-
-      case 'adminBindBlankGroupBuysToCurrentGroup': {
-        const groupSession =
-          requireOwnedGroupSession_(
-            groupSessionToken,
-            identity
-          );
-
-        result =
-          adminBindBlankGroupBuysToCurrentGroup(
-            identity.sub,
-            groupSession.groupId
-          );
-        break;
-      }
-
-      case 'adminForceCloseGroupBuy': {
-        const groupSession =
-          requireOwnedGroupSession_(
-            groupSessionToken,
-            identity
-          );
-
-        result =
-          adminForceCloseGroupBuy(
-            payload.buyId,
-            identity.sub,
-            groupSession.groupId
-          );
-        break;
-      }
-
-
-      case 'createShareLink': {
-        const groupSession =
-          requireOwnedGroupSession_(
-            groupSessionToken,
-            identity
-          );
-
-        result =
-          createOrGetShareLink_(
-            payload.buyId,
-            identity,
-            groupSession.groupId
-          );
-        break;
-      }
-
-      case 'guestGetGroupBuy': {
-        result =
-          getGuestGroupBuy_(
-            payload.shareToken || ''
-          );
-        break;
-      }
-
-      case 'guestGetMyOrder': {
-        result =
-          getGuestMyOrder_(
-            payload,
-            identity
-          );
-        break;
-      }
-
-      case 'guestSaveOrder': {
-        result =
-          saveGuestOrder_(
-            payload,
-            identity
-          );
-        break;
-      }
-
-      case 'guestOrderParticipants': {
-        result =
-          getGuestParticipants_(
-            payload
-          );
-        break;
-      }
-
-      case 'getMyOrder': {
-        const groupSession = requireOwnedGroupSession_(
-            groupSessionToken,
-            identity
-          );
-
-        if (String(groupSession.userId) !== String(identity.sub)) {
-          throw new Error('群組工作階段與目前使用者不一致');
+        // 使用者取消選擇時，不當成錯誤。
+        if (
+          pickerResult
+          &&
+          pickerResult.status
+          === 'cancel'
+        ) {
+          return;
         }
 
-        result = getMyOrder_(payload, identity, groupSession.groupId);
-        break;
-      }
-
-      case 'saveOrder': {
-        const groupSession = requireOwnedGroupSession_(
-            groupSessionToken,
-            identity
-          );
-
-        if (String(groupSession.userId) !== String(identity.sub)) {
-          throw new Error('群組工作階段與目前使用者不一致');
-        }
-
-        result = saveOrder_(payload, identity, groupSession.groupId);
-        break;
-      }
-
-      default:
-        throw new Error(
-          'Unknown POST action'
+      } catch (pickerError) {
+        console.warn(
+          'shareTargetPicker failed:',
+          pickerError
         );
+      }
+    }
+
+    // 不支援 shareTargetPicker 時的備援：
+    // 複製整段分享文字。
+    if (
+      navigator.clipboard
+      &&
+      window.isSecureContext
+    ) {
+      await navigator.clipboard.writeText(
+        shareText
+      );
+
+      alert(
+        '目前環境無法直接開啟 LINE 分享對象選擇器。'
+        +
+        '\n已將分享文字複製，可以直接貼到 LINE。'
+        +
+        '\n\n'
+        +
+        shareText
+      );
+    } else {
+      window.prompt(
+        '請複製以下分享內容：',
+        shareText
+      );
     }
 
   } catch (error) {
-    result = {
+    setAdminBusy(false);
+
+    alert(
+      error.message
+      ||
+      String(error)
+    );
+  }
+}
+
+
+function showGroupAccessError(
+  title,
+  text
+) {
+  const box =
+    document.getElementById(
+      'groupAccessMessage'
+    );
+
+  const titleBox =
+    document.getElementById(
+      'groupAccessTitle'
+    );
+
+  const textBox =
+    document.getElementById(
+      'groupAccessText'
+    );
+
+  if (titleBox) {
+    titleBox.textContent = title;
+  }
+
+  if (textBox) {
+    textBox.textContent = text;
+  }
+
+  if (box) {
+    box.style.display = 'block';
+  }
+
+  // 沒有有效群組 session，不載入任何團購資料
+  const home =
+    document.getElementById(
+      'homePanel'
+    );
+
+  const admin =
+    document.getElementById(
+      'adminPanel'
+    );
+
+  const form =
+    document.getElementById(
+      'adminFormPanel'
+    );
+
+  if (home) home.style.display = 'none';
+  if (admin) admin.style.display = 'none';
+  if (form) form.style.display = 'none';
+}
+
+
+function checkAdminStatus() {
+  // 有有效群組工作階段的使用者，都可以建立與管理自己的團。
+  const entry = document.getElementById('adminEntry');
+  if (entry) entry.style.display = 'block';
+
+  isAdmin = false;
+  canUseGroupDataTools = false;
+  currentManagementRole =
+    'GROUP_BUY_ADMIN';
+  canManageCurrentGroup = false;
+}
+
+
+
+function switchHomeTab(tabName) {
+  const paneMap = {
+    open: 'openGroupBuySection',
+    closed: 'closedGroupBuySection',
+    suspended: 'suspendedGroupBuySection'
+  };
+
+  Object.keys(paneMap).forEach(function(key) {
+    const pane = document.getElementById(paneMap[key]);
+    if (pane) {
+      pane.classList.toggle('active', key === tabName);
+    }
+  });
+
+  document.querySelectorAll('.home-tab').forEach(function(button) {
+    button.classList.toggle(
+      'active',
+      button.dataset.tab === tabName
+    );
+  });
+}
+
+
+
+function refreshMyHostStats() {
+  const box =
+    document.getElementById(
+      'myHostStats'
+    );
+
+  if (!box) return;
+
+  const myUserId =
+    currentUser
+    &&
+    currentUser.userId
+      ? String(currentUser.userId)
+      : '';
+
+  if (!myUserId) {
+    box.innerHTML = `
+      <div>我的主揪開團中：<strong>--</strong></div>
+      <div>我的主揪已結案：<strong>--</strong></div>
+    `;
+    return;
+  }
+
+  const openCount =
+    (window.currentGroupBuys || [])
+      .filter(item =>
+        String(
+          item.ownerUserId || ''
+        ).trim()
+        ===
+        myUserId.trim()
+      )
+      .length;
+
+  const closedCount =
+    (window.currentClosedGroupBuys || [])
+      .filter(item =>
+        String(
+          item.ownerUserId || ''
+        ).trim()
+        ===
+        myUserId.trim()
+      )
+      .length;
+
+  box.innerHTML = `
+    <div>我的主揪開團中：<strong>${openCount}</strong></div>
+    <div>我的主揪已結案：<strong>${closedCount}</strong></div>
+  `;
+}
+
+
+function isCategoryGroupBuy(item) {
+  return !!(
+    item
+    &&
+    Array.isArray(item.items)
+    &&
+    item.items.length > 0
+  );
+}
+
+
+function loadGroupBuyItemsForRow(item) {
+  if (!item) {
+    return Promise.resolve(item);
+  }
+
+  if (Array.isArray(item.items)) {
+    item.productMode =
+      item.items.length > 0
+        ? 'CATEGORY'
+        : 'SINGLE';
+
+    return Promise.resolve(item);
+  }
+
+  if (guestMode) {
+    item.items = [];
+    item.productMode = 'SINGLE';
+    return Promise.resolve(item);
+  }
+
+  return new Promise(function(resolve) {
+    const callbackName =
+      'handleGroupBuyItems_'
+      +
+      Date.now()
+      +
+      '_'
+      +
+      Math.random()
+        .toString(36)
+        .slice(2);
+
+    window[callbackName] = function(result) {
+      const rows =
+        result
+        &&
+        result.success
+        &&
+        Array.isArray(result.data)
+          ? result.data
+          : [];
+
+      item.items = rows;
+      item.productMode =
+        rows.length > 0
+          ? 'CATEGORY'
+          : 'SINGLE';
+
+      delete window[callbackName];
+      resolve(item);
+    };
+
+    jsonp(
+      'groupBuyItems',
+      callbackName,
+      {
+        sessionToken:
+          currentGroupSessionToken,
+        buyId:
+          item.buyId
+      },
+      function() {
+        item.items = [];
+        item.productMode = 'SINGLE';
+        delete window[callbackName];
+        resolve(item);
+      }
+    );
+  });
+}
+
+
+function hydrateGroupBuyItems(items) {
+  const rows =
+    Array.isArray(items)
+      ? items
+      : [];
+
+  return Promise.all(
+    rows.map(loadGroupBuyItemsForRow)
+  );
+}
+
+
+function renderGroupBuyPriceInfo(item) {
+  if (!isCategoryGroupBuy(item)) {
+    return `
+      <div class="info">
+        單價：$${formatNumber(item.price)} / ${escapeHtml(item.unit)}
+      </div>
+    `;
+  }
+
+  const prices =
+    item.items
+      .map(row => Number(row.price || 0))
+      .filter(value => Number.isFinite(value));
+
+  const minPrice =
+    prices.length
+      ? Math.min.apply(null, prices)
+      : 0;
+
+  const maxPrice =
+    prices.length
+      ? Math.max.apply(null, prices)
+      : 0;
+
+  const priceText =
+    minPrice === maxPrice
+      ? '$' + formatNumber(minPrice)
+      : '$' + formatNumber(minPrice) + '～$' + formatNumber(maxPrice);
+
+  return `
+    <div class="info">
+      分類商品：${item.items.length} 項｜${priceText}
+    </div>
+  `;
+}
+
+
+function loadOpenGroupBuys() {
+  window.handleOpenGroupBuys = async function(result) {
+    if (!result || !result.success) {
+      showRetry(
+        'openLoading',
+        '團購資料讀取失敗',
+        'loadOpenGroupBuys()'
+      );
+      return;
+    }
+
+    window.currentGroupBuys =
+      await hydrateGroupBuyItems(
+        result.data || []
+      );
+
+    refreshMyHostStats();
+
+    renderCarousel(
+      window.currentGroupBuys,
+      'openCarousel',
+      'openDots',
+      'openLoading',
+      true
+    );
+  };
+
+  jsonp(
+    'openGroupBuys',
+    'handleOpenGroupBuys',
+    {
+      sessionToken:
+        currentGroupSessionToken
+    },
+    function() {
+      showRetry(
+        'openLoading',
+        '無法連線至團購資料庫',
+        'loadOpenGroupBuys()'
+      );
+    }
+  );
+}
+
+
+function loadClosedGroupBuys() {
+  window.handleClosedGroupBuys = async function(result) {
+    if (!result || !result.success) {
+      showRetry(
+        'closedLoading',
+        '歷史資料讀取失敗',
+        'loadClosedGroupBuys()'
+      );
+      return;
+    }
+
+    window.currentClosedGroupBuys =
+      await hydrateGroupBuyItems(
+        result.data || []
+      );
+
+    refreshMyHostStats();
+
+    renderCarousel(
+      window.currentClosedGroupBuys,
+      'closedCarousel',
+      'closedDots',
+      'closedLoading',
+      false
+    );
+  };
+
+  jsonp(
+    'recentClosedGroupBuys',
+    'handleClosedGroupBuys',
+    {
+      sessionToken:
+        currentGroupSessionToken
+    },
+    function() {
+      showRetry(
+        'closedLoading',
+        '無法讀取歷史資料',
+        'loadClosedGroupBuys()'
+      );
+    }
+  );
+}
+
+
+
+function loadSuspendedGroupBuys() {
+  window.handleSuspendedGroupBuys = async function(result) {
+    if (!result || !result.success) {
+      showRetry(
+        'suspendedLoading',
+        '停權資料讀取失敗',
+        'loadSuspendedGroupBuys()'
+      );
+      return;
+    }
+
+    const rows =
+      await hydrateGroupBuyItems(
+        result.data || []
+      );
+
+    renderCarousel(
+      rows,
+      'suspendedCarousel',
+      'suspendedDots',
+      'suspendedLoading',
+      false,
+      'SUSPENDED'
+    );
+  };
+
+  jsonp(
+    'suspendedGroupBuys',
+    'handleSuspendedGroupBuys',
+    {
+      sessionToken:
+        currentGroupSessionToken
+    },
+    function() {
+      showRetry(
+        'suspendedLoading',
+        '無法讀取停權資料',
+        'loadSuspendedGroupBuys()'
+      );
+    }
+  );
+}
+
+
+function renderCarousel(items, carouselId, dotsId, loadingId, openMode, forcedStatus) {
+  const loading = document.getElementById(loadingId);
+  const carousel = document.getElementById(carouselId);
+  const dots = document.getElementById(dotsId);
+
+  if (!items.length) {
+    loading.style.display = 'block';
+    loading.innerHTML =
+      forcedStatus === 'SUSPENDED'
+        ? '目前沒有停權中的團購'
+        : (
+            openMode
+              ? '目前沒有開放中的團購'
+              : '近三個月沒有已關閉的團購'
+          );
+
+    carousel.style.display = 'none';
+    dots.style.display = 'none';
+    return;
+  }
+
+  loading.style.display = 'none';
+  carousel.style.display = 'flex';
+  dots.style.display = 'flex';
+
+  carousel.innerHTML = '';
+  dots.innerHTML = '';
+
+  items.forEach((item, index) => {
+    const slide = document.createElement('div');
+    slide.className = 'slide';
+
+    slide.innerHTML = `
+      <div class="card">
+        <div class="card-topline">
+          <span class="status-bubble ${
+            forcedStatus === 'SUSPENDED'
+              ? 'suspended'
+              : (
+                  openMode
+                    ? 'open'
+                    : 'closed'
+                )
+          }">
+            ${
+              forcedStatus === 'SUSPENDED'
+                ? '停權中'
+                : (
+                    openMode
+                      ? '開團中'
+                      : '已關團'
+                  )
+            }
+          </span>
+
+          <span class="card-owner">
+            開團者：${escapeHtml(item.ownerLineName || '未提供')}
+          </span>
+        </div>
+
+        ${item.imageUrl
+          ? `<img class="product-image" src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}">`
+          : ''}
+
+        <div class="product-name">${escapeHtml(item.name)}</div>
+
+        ${item.description
+          ? `<div class="description">${escapeHtml(item.description)}</div>`
+          : ''}
+
+        ${renderGroupBuyPriceInfo(item)}
+
+        <div class="info">
+          ${openMode ? '截止' : '關團'}：
+          ${formatDate(openMode ? item.endAt : item.closedAt)}
+        </div>
+
+        <div class="summary">
+          ${openMode ? '' : '最終：'}
+          ${Number(item.peopleCount || 0)} 人｜
+          ${Number(item.totalQuantity || 0)} ${isCategoryGroupBuy(item) ? '件' : escapeHtml(item.unit)}
+        </div>
+
+        ${openMode
+          ? `<div class="card-action-row">
+          <button onclick="openOrder('${escapeJs(item.buyId)}')">我要團購</button>
+          <button class="outline" onclick="openParticipants('${escapeJs(item.buyId)}')">有誰跟團</button>
+        </div>
+        ${
+          !guestMode
+            ? `<div class="card-share-row">
+                <button class="outline" onclick="shareGroupBuyLink('${escapeJs(item.buyId)}')">分享這團</button>
+              </div>`
+            : ''
+        }`
+          : ''}
+      </div>
+    `;
+
+    carousel.appendChild(slide);
+
+    const dot = document.createElement('div');
+    dot.className = index === 0 ? 'dot active' : 'dot';
+    dots.appendChild(dot);
+  });
+
+  setupCarouselDots(carousel, dots);
+}
+
+
+function setupCarouselDots(carousel, dotsContainer) {
+  let timer = null;
+
+  carousel.addEventListener('scroll', function() {
+    clearTimeout(timer);
+
+    timer = setTimeout(function() {
+      const slides = carousel.querySelectorAll('.slide');
+      let closestIndex = 0;
+      let closestDistance = Infinity;
+
+      slides.forEach((slide, index) => {
+        const distance = Math.abs(slide.offsetLeft - carousel.scrollLeft);
+
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestIndex = index;
+        }
+      });
+
+      dotsContainer.querySelectorAll('.dot').forEach((dot, index) => {
+        dot.classList.toggle('active', index === closestIndex);
+      });
+    }, 60);
+  });
+}
+
+
+
+let participantsViewState = null;
+let participantsRequestSequence = 0;
+
+function setParticipantsView(view) {
+  const state = participantsViewState;
+  if (!state) return;
+  state.view = state.category && view === 'product' ? 'product' : 'person';
+  document.getElementById('participantsList').innerHTML =
+    state.view === 'product' ? renderParticipantsByProduct(state.rows, state.item) : state.personHtml;
+  ['person', 'product'].forEach(name => {
+    const button = document.getElementById(name === 'person' ? 'participantsByPerson' : 'participantsByProduct');
+    button.disabled = name === state.view;
+    button.classList.toggle('outline', name !== state.view);
+    button.setAttribute('aria-pressed', String(name === state.view));
+  });
+  renderParticipantPayments();
+}
+
+async function loadParticipantPayments(state) {
+  if (!state || participantsViewState !== state || state.paymentLoading) return;
+  state.paymentLoading = true;
+  renderParticipantPayments();
+  const summary = document.getElementById('participantsPaymentSummary');
+  summary.textContent = '正在確認付款資訊…';
+  try {
+    const result = await adminPost('orderPaymentOverview', {
+      buyId: state.item.buyId,
+      shareToken: guestMode ? currentGuestToken : ''
+    });
+    if (participantsViewState !== state) return;
+    if (!result.success) throw new Error(result.message || '付款資訊讀取失敗');
+    state.payments = Array.isArray(result.payments) ? result.payments : [];
+    state.canManagePayments = result.canManage === true;
+    state.paymentError = '';
+  } catch (error) {
+    if (participantsViewState !== state) return;
+    state.payments = [];
+    state.paymentError = error.message || '付款資訊讀取失敗';
+  }
+  state.paymentLoading = false;
+  renderParticipantPayments();
+}
+
+function renderParticipantPayments() {
+  const state = participantsViewState;
+  if (!state) return;
+  const summary = document.getElementById('participantsPaymentSummary');
+  const extra = document.getElementById('cancelledPaymentOrders');
+  if (state.view === 'product') {
+    summary.style.display = 'none';
+    extra.innerHTML = '';
+    return;
+  }
+  summary.style.display = 'block';
+  if (state.paymentError) {
+    document.querySelectorAll('#participantsList [data-payment-order]').forEach(slot => slot.innerHTML = '');
+    extra.innerHTML = '';
+    summary.innerHTML = escapeHtml(state.paymentError)
+      + ' <button class="outline" type="button" onclick="loadParticipantPayments(participantsViewState)">重讀付款資訊</button>';
+    return;
+  }
+  if (!state.payments) return;
+  const pending = state.payments.filter(row => row.noticeStatus === 'PENDING').length;
+  summary.textContent = state.canManagePayments
+    ? '待確認付款：' + pending + ' 筆' : '';
+  state.payments.forEach((payment, index) => {
+    const slot = Array.from(document.querySelectorAll('#participantsList [data-payment-order]'))
+      .find(element => element.dataset.paymentOrder === payment.orderId);
+    if (slot) slot.innerHTML = renderPaymentCard(payment, index, state.paymentBusy || state.paymentLoading);
+  });
+  // 已取消但仍有實收金額的訂單，只在授權付款資料內提供更正入口。
+  extra.innerHTML = state.payments.map((payment, index) => {
+    if (payment.status !== 'CANCELLED' || payment.paidAmount <= 0) return '';
+    return '<div class="message" style="margin-top:12px;">'
+      + '<strong>' + escapeHtml(payment.orderName) + '（已取消訂單）</strong>'
+      + renderPaymentCard(payment, index, state.paymentBusy || state.paymentLoading) + '</div>';
+  }).join('');
+}
+
+function renderPaymentCard(payment, index, busy) {
+  const labels = { UNPAID: '未付款', PARTIAL: '部分付款', PAID: '已付款', FREE: '無需付款', CANCELLED: '已取消' };
+  const pending = payment.noticeStatus === 'PENDING';
+  const button = (action, label) => '<button type="button" class="outline" '
+    + (busy ? 'disabled ' : '') + 'onclick="operateOrderPayment(' + index + ',\'' + action + '\')">' + label + '</button>';
+  const controls = [];
+  if (payment.canManage) {
+    if (payment.remainingAmount > 0 && payment.status !== 'CANCELLED') {
+      controls.push(button('CONFIRM', pending ? '確認已付款' : '標記已付款'));
+      controls.push(button('PARTIAL', '登記部分收款'));
+    }
+    if (pending) controls.push(button('REJECT', '尚未收到／退回提醒'));
+    controls.push(button('CORRECT', '更正收款'));
+  } else if (payment.canRemind) {
+    controls.push(button('NOTICE', '提醒團主已付款'));
+  }
+  return '<div style="margin-top:10px;padding-top:9px;border-top:1px dashed #dce4df;font-size:13px;">'
+    + '<strong style="color:' + (payment.status === 'PAID' ? '#128451' : '#555') + ';">'
+    + labels[payment.status] + '</strong>｜應付 $' + formatNumber(payment.totalAmount)
+    + '／已收 $' + formatNumber(payment.paidAmount)
+    + '／尚欠 $' + formatNumber(payment.remainingAmount)
+    + (payment.overpaidAmount > 0 ? '<div style="color:#a85d15;">多收 $' + formatNumber(payment.overpaidAmount) + '，請確認退款或更正紀錄。</div>' : '')
+    + (pending ? '<div style="margin-top:5px;color:#aa6613;">已提醒，等待團主確認（尚未列入實收）</div>' : '')
+    + (payment.noticeStatus === 'REJECTED' ? '<div class="muted" style="margin-top:5px;">上次提醒未確認收足，請核對後再提醒。</div>' : '')
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">' + controls.join('') + '</div></div>';
+}
+
+async function operateOrderPayment(index, action) {
+  const state = participantsViewState;
+  if (!state || state.paymentBusy || state.paymentLoading) return;
+  const payment = (state.payments || [])[index];
+  if (!payment) return;
+  const payload = {
+    buyId: state.item.buyId, orderId: payment.orderId, paymentAction: action,
+    shareToken: guestMode ? currentGuestToken : '',
+    expectedTotal: payment.totalAmount, expectedPaid: payment.paidAmount,
+    expectedNotice: payment.noticeStatus
+  };
+  if (action === 'NOTICE') {
+    if (!confirm('確認已付清這筆訂單，並提醒團主核對？\n提醒不會直接改為已付款。')) return;
+  } else if (action === 'CONFIRM') {
+    if (!confirm('確認已收到 ' + payment.orderName + ' 的剩餘款項 $' + formatNumber(payment.remainingAmount) + '？')) return;
+  } else if (action === 'REJECT') {
+    if (!confirm('確認尚未收到完整款項，並退回這個提醒？')) return;
+  } else {
+    const answer = prompt(action === 'PARTIAL'
+      ? '這次收到多少？（會加到已收金額，尚欠 $' + formatNumber(payment.remainingAmount) + '）'
+      : '將累計已收金額更正為多少？（目前 $' + formatNumber(payment.paidAmount) + '）',
+      action === 'CORRECT' ? String(payment.paidAmount) : '');
+    if (answer === null) return;
+    if (!answer.trim() || !Number.isFinite(Number(answer)) || Number(answer) < 0) {
+      alert('請輸入正確金額'); return;
+    }
+    payload.amount = Number(answer);
+    if (action === 'CORRECT') {
+      const note = prompt('請填寫更正原因，例如輸入錯誤或已退款：', '');
+      if (note === null) return;
+      if (!note.trim()) { alert('請填寫更正原因'); return; }
+      payload.note = note.trim();
+    }
+  }
+  state.paymentBusy = true;
+  renderParticipantPayments();
+  try {
+    const result = await adminPost('updateOrderPayment', payload);
+    if (!result.success) throw new Error(result.message || '付款操作失敗');
+    if (participantsViewState === state) alert(result.message || '付款資料已更新');
+  } catch (error) {
+    if (participantsViewState === state) alert(error.message || '付款操作失敗');
+  } finally {
+    state.paymentBusy = false;
+    if (participantsViewState === state) await loadParticipantPayments(state);
+  }
+}
+
+function renderProductParticipantName(row) {
+  const name = escapeHtml(String(row.orderName || row.lineName || 'LINE 使用者').trim());
+  const sources = [];
+  if (String(row.orderType || '').toUpperCase() === 'PROXY') {
+    sources.push(`<span class="participant-source">（由 <span class="participant-line-name">${escapeHtml(row.createdByName || 'LINE 使用者')}</span> 代填）</span>`);
+  }
+  if (row.referrerName) {
+    sources.push(`<span class="participant-source">（由 <span class="participant-line-name">${escapeHtml(row.referrerName)}</span> 分享）</span>`);
+  }
+  return name + ' ' + sources.join(' ');
+}
+
+function renderParticipantsByProduct(rows, item) {
+  const products = new Map();
+  const productKey = line => String(line.itemId || JSON.stringify([
+    line.mainCategory || '', line.subCategory || '', line.optionName || '', line.unit || '', line.unitPrice
+  ]));
+  const remember = line => {
+    const key = productKey(line);
+    if (!products.has(key)) products.set(key, { line: line, buyers: [], quantity: 0, amount: 0 });
+    return products.get(key);
+  };
+  // 先沿用開團時的商品順序，再補上訂單中已停售的品項。
+  (item.items || []).forEach(remember);
+  rows.forEach(row => {
+    (Array.isArray(row.items) ? row.items : []).forEach(line => {
+      const quantity = Number(line.quantity || 0);
+      if (quantity <= 0) return;
+      const amount = line.lineTotal !== undefined
+        ? Number(line.lineTotal || 0)
+        : quantity * Number(line.unitPrice || 0);
+      const product = remember(line);
+      product.buyers.push({ row: row, quantity: quantity, amount: amount });
+      product.quantity += quantity;
+      product.amount += amount;
+    });
+  });
+  const categories = new Map();
+  products.forEach(product => {
+    if (!product.buyers.length) return;
+    const category = String(product.line.mainCategory || '未分類');
+    if (!categories.has(category)) categories.set(category, []);
+    categories.get(category).push(product);
+  });
+  return Array.from(categories).map(([category, productsInCategory]) => `
+    <section style="margin-bottom:18px;">
+      <div style="font-weight:800;font-size:17px;margin-bottom:8px;">${escapeHtml(category)}</div>
+      ${productsInCategory.map(product => `
+        <div style="border:1px solid #e3e8e5;border-radius:12px;padding:12px;margin-bottom:10px;">
+          <div style="font-weight:800;margin-bottom:4px;">${escapeHtml([product.line.subCategory, product.line.optionName].filter(Boolean).join('／') || '商品')}</div>
+          ${product.buyers.map(buyer => `
+            <div class="participant-row">
+              <div class="participant-main">
+                <div class="participant-name">${renderProductParticipantName(buyer.row)}</div>
+                <div class="participant-item-subtotal" style="margin-top:5px;">小計：$${formatNumber(buyer.amount)}</div>
+              </div>
+              <div class="participant-qty">${buyer.quantity} ${escapeHtml(product.line.unit || '')}</div>
+            </div>
+          `).join('')}
+          <div class="participant-total-amount">合計：${product.quantity} ${escapeHtml(product.line.unit || '')}／$${formatNumber(product.amount)}</div>
+        </div>
+      `).join('')}
+    </section>
+  `).join('') || '<div class="message">目前還沒有人購買分類商品。</div>';
+}
+
+function openParticipants(buyId) {
+  const requestSequence = ++participantsRequestSequence;
+  const item =
+    [...(window.currentGroupBuys || []), ...(window.currentClosedGroupBuys || []), ...(window.adminGroupBuys || [])]
+      .find(x =>
+        String(x.buyId)
+        ===
+        String(buyId)
+      );
+
+  if (!item) {
+    alert('找不到團購資料');
+    return;
+  }
+
+  const panel =
+    document.getElementById(
+      'participantsPanel'
+    );
+
+  const title =
+    document.getElementById(
+      'participantsTitle'
+    );
+
+  const loading =
+    document.getElementById(
+      'participantsLoading'
+    );
+
+  const list =
+    document.getElementById(
+      'participantsList'
+    );
+
+  const peopleCount =
+    document.getElementById(
+      'participantsPeopleCount'
+    );
+
+  const totalQuantity =
+    document.getElementById(
+      'participantsTotalQuantity'
+    );
+
+  const totalAmount =
+    document.getElementById(
+      'participantsTotalAmount'
+    );
+
+  title.textContent =
+    item.name || '團購品項';
+
+  peopleCount.textContent = '0';
+  totalQuantity.textContent = '0';
+  totalAmount.textContent = '$0';
+
+  loading.style.display = 'block';
+  loading.textContent =
+    '正在讀取跟團名單...';
+
+  list.innerHTML = '';
+
+  participantsViewState = null;
+  document.getElementById('participantsPaymentSummary').textContent = '';
+  document.getElementById('cancelledPaymentOrders').innerHTML = '';
+  document.getElementById('participantsViewTabs').style.display = 'none';
+
+  panel.classList.add('show');
+  document.body.classList.add('modal-open');
+
+  window.handleOrderParticipants =
+    function(result) {
+      if (requestSequence !== participantsRequestSequence) return;
+      if (result && result.buyId && String(result.buyId) !== String(buyId)) return;
+      if (
+        !result
+        ||
+        !result.success
+      ) {
+        loading.innerHTML =
+          '<span class="error">'
+          +
+          escapeHtml(
+            result && result.message
+              ? result.message
+              : '無法讀取跟團名單'
+          )
+          +
+          '</span>';
+        return;
+      }
+
+      peopleCount.textContent =
+        String(
+          Number(
+            result.peopleCount || 0
+          )
+        );
+
+      totalQuantity.textContent =
+        String(
+          Number(
+            result.totalQuantity || 0
+          )
+        );
+
+      totalAmount.textContent =
+        '$'
+        +
+        formatNumber(
+          Number(
+            result.totalAmount || 0
+          )
+        );
+
+      const rows =
+        Array.isArray(
+          result.participants
+        )
+          ? result.participants
+          : [];
+
+      if (!rows.length) {
+        loading.style.display = 'block';
+        loading.textContent =
+          '目前還沒有人跟團。';
+        list.innerHTML = '';
+        participantsViewState = { item: item, rows: [], personHtml: '', category: isCategoryGroupBuy(item), view: 'person' };
+        loadParticipantPayments(participantsViewState);
+        return;
+      }
+
+      loading.style.display = 'none';
+
+      list.innerHTML =
+        rows
+          .map(row => {
+            const orderType =
+              String(row.orderType || 'SELF')
+                .trim()
+                .toUpperCase();
+
+            const isProxy =
+              orderType === 'PROXY';
+
+            const participantName =
+              String(
+                row.orderName
+                || row.lineName
+                || 'LINE 使用者'
+              ).trim();
+
+            const createdByName =
+              String(
+                row.createdByName || ''
+              ).trim();
+
+            const referrerName =
+              String(
+                row.referrerName || ''
+              ).trim();
+
+            const sources = [];
+
+            if (isProxy) {
+              sources.push(`
+                <span class="participant-source">
+                  （由
+                  ${
+                    createdByName
+                      ? `<span class="participant-line-name">${escapeHtml(createdByName)}</span>`
+                      : 'LINE 使用者'
+                  }
+                  代填）
+                </span>
+              `);
+            }
+
+            if (referrerName) {
+              sources.push(`
+                <span class="participant-source">
+                  （由
+                  <span class="participant-line-name">${escapeHtml(referrerName)}</span>
+                  分享）
+                </span>
+              `);
+            }
+
+            const orderItemLines =
+              Array.isArray(row.items)
+                ? row.items
+                : [];
+
+            const participantTotalAmount =
+              Number(
+                row.totalAmount || 0
+              );
+
+            const itemDetails =
+              orderItemLines.length
+                ? `
+                    <div class="participant-item-lines">
+                      ${orderItemLines
+                        .map(orderItem => {
+                          const lineTotal =
+                            orderItem.lineTotal !== undefined
+                              ? Number(orderItem.lineTotal || 0)
+                              : (
+                                  Number(orderItem.quantity || 0)
+                                  *
+                                  Number(orderItem.unitPrice || 0)
+                                );
+
+                          return `
+                            <div class="participant-item-line">
+                              <span>
+                                ${escapeHtml(orderItem.mainCategory || '')}
+                                ／
+                                ${escapeHtml(orderItem.subCategory || '')}
+                                ${orderItem.optionName ? '／' + escapeHtml(orderItem.optionName) : ''}
+                                × ${Number(orderItem.quantity || 0)}
+                                ${escapeHtml(orderItem.unit || '')}
+                              </span>
+                              <span class="participant-item-subtotal">
+                                小計：$${formatNumber(lineTotal)}
+                              </span>
+                            </div>
+                          `;
+                        })
+                        .join('')}
+                    </div>
+                  `
+                : `
+                    <div class="participant-item-lines">
+                      <div class="participant-item-line single-subtotal">
+                        <span class="participant-item-subtotal">
+                          小計：$${formatNumber(participantTotalAmount)}
+                        </span>
+                      </div>
+                    </div>
+                  `;
+
+            const totalAmountDetails = `
+              <div class="participant-total-amount">
+                總計：$${formatNumber(participantTotalAmount)}
+              </div>
+            `;
+
+            return `
+              <div class="participant-row">
+                <div class="participant-main">
+                  <div class="participant-name">
+                    ${escapeHtml(participantName)}
+                    ${sources.join(' ')}
+                  </div>
+                  ${itemDetails}
+                  ${totalAmountDetails}
+                  <div data-payment-order="${escapeHtml(row.orderId || '')}"></div>
+                </div>
+                <div class="participant-qty">
+                  ${Number(row.quantity || 0)}
+                  ${orderItemLines.length ? '件' : escapeHtml(item.unit || '')}
+                </div>
+              </div>
+            `;
+          })
+          .join('');
+      participantsViewState = {
+        item: item,
+        rows: rows,
+        personHtml: list.innerHTML,
+        category: isCategoryGroupBuy(item) || rows.some(row => Array.isArray(row.items) && row.items.length > 0),
+        view: 'person'
+      };
+      document.getElementById('participantsViewTabs').style.display =
+        participantsViewState.category ? 'flex' : 'none';
+      setParticipantsView('person');
+      loadParticipantPayments(participantsViewState);
+    };
+
+  if (guestMode) {
+    adminPost(
+      'guestOrderParticipants',
+      {
+        shareToken:
+          currentGuestToken
+      }
+    )
+      .then(
+        window.handleOrderParticipants
+      )
+      .catch(function(error) {
+        loading.innerHTML =
+          '<span class="error">'
+          +
+          escapeHtml(
+            error.message
+            ||
+            String(error)
+          )
+          +
+          '</span>';
+      });
+
+    return;
+  }
+
+  jsonp(
+    'orderParticipants',
+    'handleOrderParticipants',
+    {
+      sessionToken:
+        currentGroupSessionToken,
+      buyId:
+        buyId
+    },
+    function(message) {
+      loading.innerHTML =
+        '<span class="error">'
+        +
+        escapeHtml(
+          message || '讀取跟團名單失敗'
+        )
+        +
+        '</span>';
+    }
+  );
+}
+
+
+function closeParticipants() {
+  participantsRequestSequence++;
+  participantsViewState = null;
+  const panel =
+    document.getElementById(
+      'participantsPanel'
+    );
+
+  if (panel) {
+    panel.classList.remove('show');
+  }
+
+  document.body.classList.remove('modal-open');
+}
+
+
+function handleParticipantsBackdrop(event) {
+  if (
+    event
+    &&
+    event.target
+    &&
+    event.target.id
+      ===
+      'participantsPanel'
+  ) {
+    closeParticipants();
+  }
+}
+
+
+
+function refreshOrderTypeUI() {
+  const selfTab =
+    document.getElementById(
+      'orderModeSelfTab'
+    );
+
+  const proxyTab =
+    document.getElementById(
+      'orderModeProxyTab'
+    );
+
+  const proxyWrap =
+    document.getElementById(
+      'proxyNameWrap'
+    );
+
+  const isProxy =
+    currentOrderType === 'PROXY';
+
+  if (selfTab) {
+    selfTab.classList.toggle(
+      'active',
+      !isProxy
+    );
+
+    selfTab.disabled =
+      !isProxy;
+  }
+
+  if (proxyTab) {
+    proxyTab.classList.toggle(
+      'active',
+      isProxy
+    );
+
+    proxyTab.disabled =
+      isProxy;
+  }
+
+  if (proxyWrap) {
+    proxyWrap.style.display =
+      isProxy
+        ? 'block'
+        : 'none';
+  }
+  document.getElementById('selfOrderSelectWrap').style.display =
+    !isProxy && document.getElementById('selfOrderSelect').options.length > 1 ? 'block' : 'none';
+}
+
+
+async function setOrderMode(type) {
+  if (!orderDataReady) {
+    return;
+  }
+
+  const nextType =
+    String(
+      type || 'SELF'
+    ).toUpperCase();
+
+  if (
+    nextType === currentOrderType
+  ) {
+    return;
+  }
+
+  if (
+    guestMode
+    &&
+    nextType !== 'SELF'
+  ) {
+    return;
+  }
+
+  currentOrderType =
+    nextType;
+  selectedOrderId = '';
+  loadedRecipientUserId = '';
+  document.getElementById('proxyRecipient').value = '';
+  document.getElementById('proxyOrderName').readOnly = false;
+  document.getElementById('orderAttributionHint').textContent = '';
+  document.getElementById('selfOrderSelectWrap').style.display = 'none';
+
+  const input =
+    document.getElementById(
+      'orderQty'
+    );
+
+  if (input) {
+    input.value = 0;
+  }
+
+  resetCategoryOrderQuantities();
+
+  if (
+    currentOrderType === 'SELF'
+  ) {
+    const proxyNameInput =
+      document.getElementById(
+        'proxyOrderName'
+      );
+
+    if (proxyNameInput) {
+      proxyNameInput.value = '';
+    }
+  }
+
+  updateOrderTotal();
+  refreshOrderTypeUI();
+
+  if (
+    currentOrderType === 'PROXY'
+  ) {
+    try {
+      setOrderLoadingState(true);
+      await loadProxyUsers();
+    } catch (error) {
+      alert(error.message || '無法讀取已登記使用者，可先手動填姓名');
+    } finally {
+      setOrderLoadingState(false);
+    }
+    const nameInput =
+      document.getElementById(
+        'proxyOrderName'
+      );
+
+    if (nameInput) {
+      nameInput.focus();
+    }
+
+    return;
+  }
+
+  await loadSelectedOrderQuantity();
+}
+
+async function loadSelectedOrderQuantity() {
+  if (!currentBuy) return;
+
+  const proxyNameInput =
+    document.getElementById(
+      'proxyOrderName'
+    );
+
+  const proxyName =
+    proxyNameInput
+      ? proxyNameInput.value.trim()
+      : '';
+
+  if (
+    currentOrderType === 'PROXY'
+    &&
+    !proxyName
+  ) {
+    const input =
+      document.getElementById(
+        'orderQty'
+      );
+
+    if (input) {
+      input.value = 0;
+    }
+
+    resetCategoryOrderQuantities();
+    updateOrderTotal();
+    return;
+  }
+
+  setOrderLoadingState(true);
+
+  try {
+    const result =
+      await adminPost(
+        guestMode
+          ? 'guestGetMyOrder'
+          : 'getMyOrder',
+        {
+          buyId:
+            currentBuy.buyId,
+
+          shareToken:
+            guestMode
+              ? currentGuestToken
+              : '',
+
+          orderType:
+            currentOrderType,
+
+          orderId: selectedOrderId,
+          recipientUserId: document.getElementById('proxyRecipient').value,
+
+          orderName:
+            currentOrderType === 'PROXY'
+              ? proxyName
+              : ''
+        }
+      );
+
+    if (!result.success) {
+      throw new Error(
+        result.message
+        ||
+        '無法讀取目前訂單'
+      );
+    }
+
+    selectedOrderId = result.orderId || '';
+    loadedRecipientUserId = result.recipientUserId || '';
+    if (currentOrderType === 'SELF') {
+      const select = document.getElementById('selfOrderSelect');
+      select.innerHTML = '';
+      (result.orders || []).forEach(order => {
+        const option = document.createElement('option');
+        option.value = order.orderId;
+        option.textContent = order.orderType === 'PROXY'
+          ? order.orderName + '（由 ' + order.createdByName + ' 代填）'
+          : order.orderName + '（本人訂單）';
+        select.appendChild(option);
+      });
+      select.value = selectedOrderId;
+      document.getElementById('selfOrderSelectWrap').style.display = select.options.length > 1 ? 'block' : 'none';
+    } else if (loadedRecipientUserId) {
+      document.getElementById('proxyRecipient').value = loadedRecipientUserId;
+      document.getElementById('proxyOrderName').readOnly = true;
+    }
+    document.getElementById('orderAttributionHint').textContent =
+      currentOrderType === 'SELF' && result.orderType === 'PROXY'
+        ? '由 ' + (result.createdByName || 'LINE 使用者') + ' 代填。只有你實際修改品項或數量並儲存，才會取消代填註記。'
+        : '';
+
+    if (isCategoryGroupBuy(currentBuy)) {
+      const quantityByItemId = {};
+
+      (
+        Array.isArray(result.items)
+          ? result.items
+          : []
+      ).forEach(row => {
+        quantityByItemId[
+          String(row.itemId || '')
+        ] = Number(row.quantity || 0);
+      });
+
+      document
+        .querySelectorAll(
+          '#categoryOrderList .category-order-qty'
+        )
+        .forEach(input => {
+          input.value =
+            quantityByItemId[
+              String(input.dataset.itemId || '')
+            ]
+            ||
+            0;
+        });
+    } else {
+      const input =
+        document.getElementById(
+          'orderQty'
+        );
+
+      if (input) {
+        input.value =
+          Number(result.quantity || 0);
+      }
+    }
+
+    updateOrderTotal();
+
+  } catch (error) {
+    alert(
+      error.message
+      ||
+      String(error)
+    );
+  } finally {
+    setOrderLoadingState(false);
+  }
+}
+
+
+function setOrderLoadingState(isLoading) {
+  const controls = [
+    document.getElementById('orderMinusButton'),
+    document.getElementById('orderPlusButton'),
+    document.getElementById('orderQty'),
+    document.getElementById('orderSaveButton'),
+    document.getElementById('orderModeSelfTab'),
+    document.getElementById('orderModeProxyTab'),
+    document.getElementById('proxyOrderName'),
+    document.getElementById('proxyRecipient'),
+    document.getElementById('selfOrderSelect')
+  ];
+
+  document
+    .querySelectorAll(
+      '#categoryOrderList button, #categoryOrderList input'
+    )
+    .forEach(element => {
+      controls.push(element);
+    });
+
+  const saveButton =
+    document.getElementById(
+      'orderSaveButton'
+    );
+
+  const hint =
+    document.getElementById(
+      'orderLoadingHint'
+    );
+
+  orderDataReady = !isLoading;
+
+  controls.forEach(function(element) {
+    if (element) {
+      element.disabled = isLoading;
+    }
+  });
+
+  if (saveButton) {
+    saveButton.textContent =
+      isLoading
+        ? '訂單讀取中…'
+        : '儲存訂單';
+  }
+
+  if (hint) {
+    hint.style.display =
+      isLoading
+        ? 'block'
+        : 'none';
+
+    hint.textContent =
+      '訂單讀取中，請稍候…';
+  }
+
+  if (!isLoading) {
+    refreshOrderTypeUI();
+  }
+}
+
+
+function renderCategoryOrderControls(items) {
+  const list =
+    document.getElementById(
+      'categoryOrderList'
+    );
+
+  const groups = {};
+
+  (
+    Array.isArray(items)
+      ? items
+      : []
+  ).forEach(item => {
+    const mainCategory =
+      String(
+        item.mainCategory || '其他'
+      ).trim();
+
+    if (!groups[mainCategory]) {
+      groups[mainCategory] = [];
+    }
+
+    groups[mainCategory].push(item);
+  });
+
+  list.innerHTML =
+    Object.keys(groups)
+      .map(mainCategory => {
+        const rows =
+          groups[mainCategory]
+            .map(item => {
+              const optionText =
+                item.optionName
+                  ? '｜' + escapeHtml(item.optionName)
+                  : '';
+
+              return `
+                <div class="category-order-row">
+                  <div>
+                    <div class="category-order-name">
+                      ${escapeHtml(item.subCategory || '')}${optionText}
+                    </div>
+                    <div class="category-order-price">
+                      $${formatNumber(item.price)}／${escapeHtml(item.unit || '')}
+                    </div>
+                  </div>
+
+                  <div class="category-order-stepper">
+                    <button
+                      type="button"
+                      class="outline"
+                      onclick="changeCategoryOrderQuantity('${escapeJs(item.itemId)}', -1)"
+                    >−</button>
+
+                    <input
+                      class="category-order-qty"
+                      type="number"
+                      min="0"
+                      max="9999"
+                      step="1"
+                      value="0"
+                      inputmode="numeric"
+                      data-item-id="${escapeHtml(item.itemId)}"
+                      data-price="${Number(item.price || 0)}"
+                      oninput="updateOrderTotal()"
+                    >
+
+                    <button
+                      type="button"
+                      onclick="changeCategoryOrderQuantity('${escapeJs(item.itemId)}', 1)"
+                    >＋</button>
+                  </div>
+                </div>
+              `;
+            })
+            .join('');
+
+        return `
+          <div class="category-order-group">
+            <div class="category-order-title">
+              ${escapeHtml(mainCategory)}
+            </div>
+            ${rows}
+          </div>
+        `;
+      })
+      .join('');
+}
+
+
+function resetCategoryOrderQuantities() {
+  document
+    .querySelectorAll(
+      '#categoryOrderList .category-order-qty'
+    )
+    .forEach(input => {
+      input.value = 0;
+    });
+}
+
+
+async function openOrder(buyId) {
+  const item =
+    window.currentGroupBuys.find(
+      row =>
+        String(row.buyId)
+        ===
+        String(buyId)
+    );
+
+  if (!item) {
+    alert(
+      '找不到這個團購項目'
+    );
+    return;
+  }
+
+  currentBuy =
+    await loadGroupBuyItemsForRow(
+      item
+    );
+
+  currentOrderItems =
+    Array.isArray(currentBuy.items)
+      ? currentBuy.items
+      : [];
+
+  currentOrderType = 'SELF';
+
+  selectedOrderId = '';
+  loadedRecipientUserId = '';
+  document.getElementById('proxyRecipient').value = '';
+  document.getElementById('proxyOrderName').readOnly = false;
+  document.getElementById('selfOrderSelect').innerHTML = '';
+  document.getElementById('selfOrderSelectWrap').style.display = 'none';
+  document.getElementById('orderAttributionHint').textContent = '';
+
+  const proxyNameInput =
+    document.getElementById(
+      'proxyOrderName'
+    );
+
+  if (proxyNameInput) {
+    proxyNameInput.value = '';
+  }
+
+  refreshOrderTypeUI();
+
+  document
+    .getElementById(
+      'orderProductName'
+    )
+    .textContent =
+      currentBuy.name || '';
+
+  document
+    .getElementById(
+      'orderDescription'
+    )
+    .textContent =
+      currentBuy.description || '';
+
+  document
+    .getElementById(
+      'orderPrice'
+    )
+    .textContent =
+      '$'
+      +
+      formatNumber(
+        currentBuy.price
+      );
+
+  document
+    .getElementById(
+      'orderUnit'
+    )
+    .textContent =
+      currentBuy.unit || '';
+
+  document
+    .getElementById(
+      'orderEndAt'
+    )
+    .textContent =
+      formatDate(
+        currentBuy.endAt
+      );
+
+  document
+    .getElementById(
+      'orderPeopleCount'
+    )
+    .textContent =
+      Number(
+        currentBuy.peopleCount || 0
+      );
+
+  document
+    .getElementById(
+      'orderTotalQuantity'
+    )
+    .textContent =
+      Number(
+        currentBuy.totalQuantity || 0
+      );
+
+  const categoryMode =
+    isCategoryGroupBuy(
+      currentBuy
+    );
+
+  document
+    .getElementById(
+      'orderSummaryUnit'
+    )
+    .textContent =
+      categoryMode
+        ? '件'
+        : currentBuy.unit || '';
+
+  document
+    .getElementById(
+      'singleOrderPriceInfo'
+    )
+    .style.display =
+      categoryMode
+        ? 'none'
+        : 'block';
+
+  document
+    .getElementById(
+      'singleOrderControls'
+    )
+    .style.display =
+      categoryMode
+        ? 'none'
+        : 'block';
+
+  document
+    .getElementById(
+      'categoryOrderControls'
+    )
+    .style.display =
+      categoryMode
+        ? 'block'
+        : 'none';
+
+  document
+    .getElementById(
+      'orderQty'
+    )
+    .value = 0;
+
+  if (categoryMode) {
+    renderCategoryOrderControls(
+      currentOrderItems
+    );
+  } else {
+    document
+      .getElementById(
+        'categoryOrderList'
+      )
+      .innerHTML = '';
+  }
+
+  const panel =
+    document.getElementById(
+      'orderPanel'
+    );
+
+  setOrderLoadingState(true);
+
+  panel.classList.add('show');
+  document.body.classList.add(
+    'modal-open'
+  );
+
+  updateOrderTotal();
+
+  await loadSelectedOrderQuantity();
+}
+
+
+function collectCategoryOrderItems() {
+  return Array.from(
+    document.querySelectorAll(
+      '#categoryOrderList .category-order-qty'
+    )
+  ).map(input => {
+    return {
+      itemId:
+        String(
+          input.dataset.itemId || ''
+        ),
+      quantity:
+        Number(
+          input.value || 0
+        )
+    };
+  });
+}
+
+
+function updateOrderTotal() {
+  if (!currentBuy) return;
+
+  let total = 0;
+
+  if (isCategoryGroupBuy(currentBuy)) {
+    document
+      .querySelectorAll(
+        '#categoryOrderList .category-order-qty'
+      )
+      .forEach(input => {
+        const quantity =
+          Number(
+            input.value || 0
+          );
+
+        const price =
+          Number(
+            input.dataset.price || 0
+          );
+
+        total +=
+          quantity * price;
+      });
+  } else {
+    const quantity =
+      Number(
+        document
+          .getElementById(
+            'orderQty'
+          )
+          .value
+        ||
+        0
+      );
+
+    total =
+      quantity
+      *
+      Number(
+        currentBuy.price || 0
+      );
+  }
+
+  document
+    .getElementById(
+      'orderTotal'
+    )
+    .textContent =
+      '$'
+      +
+      formatNumber(total);
+}
+
+
+function changeOrderQuantity(delta) {
+  if (!orderDataReady) return;
+
+  const input =
+    document.getElementById(
+      'orderQty'
+    );
+
+  let value =
+    Number(
+      input.value || 0
+    );
+
+  if (!Number.isInteger(value)) {
+    value = 0;
+  }
+
+  value =
+    Math.max(
+      0,
+      Math.min(
+        9999,
+        value
+        +
+        Number(delta || 0)
+      )
+    );
+
+  input.value = value;
+  updateOrderTotal();
+}
+
+
+function changeCategoryOrderQuantity(
+  itemId,
+  delta
+) {
+  if (!orderDataReady) return;
+
+  const input =
+    Array.from(
+      document.querySelectorAll(
+        '#categoryOrderList .category-order-qty'
+      )
+    )
+      .find(element =>
+        String(element.dataset.itemId)
+        ===
+        String(itemId)
+      );
+
+  if (!input) return;
+
+  let value =
+    Number(
+      input.value || 0
+    );
+
+  if (!Number.isInteger(value)) {
+    value = 0;
+  }
+
+  value =
+    Math.max(
+      0,
+      Math.min(
+        9999,
+        value
+        +
+        Number(delta || 0)
+      )
+    );
+
+  input.value = value;
+  updateOrderTotal();
+}
+
+
+async function confirmOrder() {
+  if (!orderDataReady) {
+    return;
+  }
+
+  if (!currentBuy) {
+    alert(
+      '目前沒有可儲存的團購'
+    );
+    return;
+  }
+
+  const categoryMode =
+    isCategoryGroupBuy(
+      currentBuy
+    );
+
+  const items =
+    categoryMode
+      ? collectCategoryOrderItems()
+      : [];
+
+  const quantity =
+    categoryMode
+      ? items.reduce(
+          (sum, row) =>
+            sum
+            +
+            Number(row.quantity || 0),
+          0
+        )
+      : Number(
+          document
+            .getElementById(
+              'orderQty'
+            )
+            .value
+        );
+
+  const proxyNameInput =
+    document.getElementById(
+      'proxyOrderName'
+    );
+
+  const proxyName =
+    proxyNameInput
+      ? proxyNameInput.value.trim()
+      : '';
+
+  if (
+    currentOrderType === 'PROXY'
+    &&
+    !proxyName
+  ) {
+    alert(
+      '代人下單時請先輸入姓名'
+    );
+
+    if (proxyNameInput) {
+      proxyNameInput.focus();
+    }
+
+    return;
+  }
+
+  if (
+    !Number.isInteger(quantity)
+    ||
+    quantity < 0
+    ||
+    quantity > 9999
+  ) {
+    alert(
+      '請輸入 0～9999 的整數數量'
+    );
+    return;
+  }
+
+  const invalidCategoryItem =
+    items.find(row =>
+      !Number.isInteger(row.quantity)
+      ||
+      row.quantity < 0
+      ||
+      row.quantity > 9999
+    );
+
+  if (invalidCategoryItem) {
+    alert(
+      '每個次類別都必須輸入 0～9999 的整數'
+    );
+    return;
+  }
+
+  const saveButton =
+    document.getElementById(
+      'orderSaveButton'
+    );
+
+  setOrderLoadingState(true);
+
+  if (saveButton) {
+    saveButton.textContent =
+      '儲存中…';
+  }
+
+  const hint =
+    document.getElementById(
+      'orderLoadingHint'
+    );
+
+  if (hint) {
+    hint.style.display =
+      'block';
+
+    hint.textContent =
+      '訂單儲存中，請稍候…';
+  }
+
+  try {
+    const result =
+      await adminPost(
+        guestMode
+          ? 'guestSaveOrder'
+          : 'saveOrder',
+        {
+          buyId:
+            currentBuy.buyId,
+
+          shareToken:
+            guestMode
+              ? currentGuestToken
+              : '',
+
+          quantity:
+            quantity,
+
+          items:
+            categoryMode
+              ? items
+              : undefined,
+
+          lineName:
+            currentUser
+              ? currentUser.displayName
+              : '',
+
+          orderType:
+            currentOrderType,
+
+          orderId: selectedOrderId,
+          recipientUserId: document.getElementById('proxyRecipient').value,
+
+          orderName:
+            currentOrderType === 'PROXY'
+              ? proxyName
+              : ''
+        }
+      );
+
+    if (!result.success) {
+      throw new Error(
+        result.message
+        ||
+        '訂單儲存失敗'
+      );
+    }
+
+    closeOrder();
+
+    alert(
+      result.message
+      ||
+      '訂單已儲存'
+    );
+
+    if (guestMode) {
+      await loadGuestSharedGroupBuy();
+    } else {
+      loadOpenGroupBuys();
+    }
+
+  } catch (error) {
+    setOrderLoadingState(false);
+
+    const loadingHint =
+      document.getElementById(
+        'orderLoadingHint'
+      );
+
+    if (loadingHint) {
+      loadingHint.textContent =
+        '訂單讀取中，請稍候…';
+    }
+
+    alert(
+      error.message
+      ||
+      String(error)
+    );
+  }
+}
+
+
+function closeOrder() {
+  currentBuy = null;
+  currentOrderType = 'SELF';
+  orderDataReady = false;
+
+  const panel = document.getElementById('orderPanel');
+  if (panel) panel.classList.remove('show');
+
+  document.body.classList.remove('modal-open');
+}
+
+
+function handleOrderModalBackdrop(event) {
+  if (
+    event &&
+    event.target &&
+    event.target.id === 'orderPanel'
+  ) {
+    closeOrder();
+  }
+}
+
+
+/* =========================
+   管理專區
+========================= */
+
+function openAdminPanel() {
+  if (!currentGroupSessionToken) {
+    alert('請從 LINE 群組的專屬團購入口開啟');
+    return;
+  }
+
+  document.getElementById('homePanel').style.display = 'none';
+  document.getElementById('adminPanel').style.display = 'block';
+
+  const homeToolbar =
+    document.getElementById(
+      'homeToolbar'
+    );
+
+  if (homeToolbar) {
+    homeToolbar.style.display = 'none';
+  }
+
+  const entry =
+    document.getElementById(
+      'adminEntry'
+    );
+
+  if (entry) {
+    entry.style.display = 'none';
+  }
+
+  currentAdminView = 'mine';
+
+  currentManagementRole = '';
+  canManageCurrentGroup = false;
+  isAdmin = false;
+
+  const roleBadge =
+    document.getElementById(
+      'adminRoleBadge'
+    );
+
+  if (roleBadge) {
+    roleBadge.textContent =
+      '權限確認中…';
+  }
+
+  const tabs =
+    document.getElementById(
+      'adminViewTabs'
+    );
+
+  if (tabs) {
+    tabs.classList.remove('show');
+  }
+
+  loadAdminList();
+}
+
+
+function closeAdminPanel() {
+  document.getElementById('adminPanel').style.display = 'none';
+  document.getElementById('homePanel').style.display = 'block';
+
+  const homeToolbar =
+    document.getElementById(
+      'homeToolbar'
+    );
+
+  if (homeToolbar) {
+    homeToolbar.style.display = 'grid';
+  }
+
+  const entry =
+    document.getElementById(
+      'adminEntry'
+    );
+
+  if (entry) {
+    entry.style.display = 'block';
+  }
+
+  loadOpenGroupBuys();
+  loadClosedGroupBuys();
+}
+
+
+function loadAdminList() {
+  const box = document.getElementById('adminList');
+  box.innerHTML = '正在載入管理資料...';
+
+  window.handleAdminGroupBuys = async function(result) {
+    if (!result || !result.success) {
+      const roleBadge =
+        document.getElementById(
+          'adminRoleBadge'
+        );
+
+      if (roleBadge) {
+        roleBadge.textContent =
+          '權限讀取失敗';
+      }
+
+      box.innerHTML =
+        '<span class="error">'
+        + escapeHtml(
+          result && result.message
+            ? result.message
+            : '管理資料讀取失敗'
+        )
+        + '</span>';
+      return;
+    }
+
+    window.adminAllGroupBuys =
+      await hydrateGroupBuyItems(
+        result.data || []
+      );
+
+    currentManagementRole =
+      String(
+        result.managementRole
+        ||
+        'GROUP_BUY_ADMIN'
+      )
+      .trim()
+      .toUpperCase();
+
+    canManageCurrentGroup =
+      result.canManageGroup === true;
+
+    isAdmin =
+      canManageCurrentGroup;
+
+    // 系統資料修復工具已移至獨立 System Admin 頁面。
+    canUseGroupDataTools = false;
+
+    const roleBadge =
+      document.getElementById(
+        'adminRoleBadge'
+      );
+
+    if (roleBadge) {
+      const roleLabelMap = {
+        SYSTEM_ADMIN: '系統管理者',
+        GROUP_SUPER_ADMIN: '群組管理者',
+        GROUP_BUY_ADMIN: '團購主'
+      };
+
+      roleBadge.textContent =
+        roleLabelMap[currentManagementRole]
+        || '團購主';
+    }
+
+    const tabs =
+      document.getElementById(
+        'adminViewTabs'
+      );
+
+    if (tabs) {
+      tabs.classList.toggle(
+        'show',
+        canManageCurrentGroup
+      );
+    }
+
+    refreshAdminManagementView();
+  };
+
+  jsonp(
+    'myGroupBuys',
+    'handleAdminGroupBuys',
+    { sessionToken: currentGroupSessionToken },
+    function(message) {
+      const roleBadge =
+        document.getElementById(
+          'adminRoleBadge'
+        );
+
+      if (roleBadge) {
+        roleBadge.textContent =
+          '權限讀取失敗';
+      }
+
+      box.innerHTML =
+        '<span class="error">無法讀取管理資料：'
+        + escapeHtml(message || '請稍後再試')
+        + '</span>';
+    }
+  );
+}
+
+
+function setAdminManagementView(viewName) {
+  if (!canManageCurrentGroup) {
+    currentAdminView = 'mine';
+  } else {
+    const allowed = [
+      'mine',
+      'pending',
+      'all'
+    ];
+
+    currentAdminView =
+      allowed.includes(viewName)
+        ? viewName
+        : 'mine';
+  }
+
+  refreshAdminManagementView();
+}
+
+
+function refreshAdminManagementView() {
+  const allRows =
+    Array.isArray(
+      window.adminAllGroupBuys
+    )
+      ? window.adminAllGroupBuys
+      : [];
+
+  const pendingCount =
+    allRows.filter(item =>
+      String(item.status || '')
+        .trim()
+        .toUpperCase()
+      ===
+      'PENDING'
+    ).length;
+
+  const pendingButton =
+    document.getElementById(
+      'adminViewPending'
+    );
+
+  if (pendingButton) {
+    pendingButton.textContent =
+      '待審核'
+      +
+      (pendingCount
+        ? ' (' + pendingCount + ')'
+        : '');
+  }
+
+  if (currentAdminView === 'pending') {
+    window.adminGroupBuys =
+      allRows.filter(item =>
+        String(item.status || '')
+          .trim()
+          .toUpperCase()
+        ===
+        'PENDING'
+      );
+  } else if (
+    currentAdminView === 'all'
+    &&
+    canManageCurrentGroup
+  ) {
+    window.adminGroupBuys =
+      allRows.slice();
+  } else {
+    currentAdminView = 'mine';
+    window.adminGroupBuys =
+      allRows.filter(isMyGroupBuy);
+  }
+
+  const tabMap = {
+    mine: 'adminViewMine',
+    pending: 'adminViewPending',
+    all: 'adminViewAll'
+  };
+
+  Object.keys(tabMap)
+    .forEach(viewName => {
+      const button =
+        document.getElementById(
+          tabMap[viewName]
+        );
+
+      if (!button) return;
+
+      const active =
+        currentAdminView
+        ===
+        viewName;
+
+      button.classList.toggle(
+        'active',
+        active
+      );
+
+      button.disabled = active;
+    });
+
+  renderAdminList();
+}
+
+
+
+function isMyGroupBuy(item) {
+  return !!(
+    currentUser
+    &&
+    item
+    &&
+    String(item.ownerUserId || '').trim()
+      ===
+    String(currentUser.userId || '').trim()
+  );
+}
+
+function renderAdminList() {
+  const box = document.getElementById('adminList');
+
+  if (!window.adminGroupBuys.length) {
+    const emptyText =
+      currentAdminView === 'pending'
+        ? '目前沒有待審核團購'
+        : currentAdminView === 'all'
+          ? '目前此群組沒有團購資料'
+          : '目前你沒有開團';
+
+    box.className = 'message';
+    box.innerHTML = `
+      <strong>${emptyText}</strong>
+      <div class="muted" style="margin-top:6px;">
+        可以點「建立新團」新增團購。
+      </div>
+    `;
+    return;
+  }
+
+  const statusLabel = {
+    DRAFT: '草稿',
+    PENDING: '待審核',
+    OPEN: '開團中',
+    CLOSED: '已結團',
+    SUSPENDED: '已停權',
+    CANCELLED: '已取消'
+  };
+
+  box.className = 'card';
+  box.innerHTML = '';
+
+  window.adminGroupBuys.forEach(item => {
+    const status =
+      String(item.status || '')
+        .trim()
+        .toUpperCase();
+
+    const div =
+      document.createElement('div');
+
+    div.className = 'admin-row';
+
+    const isOwner =
+      currentUser
+      &&
+      String(item.ownerUserId || '').trim()
+      ===
+      String(currentUser.userId || '').trim();
+
+    const canEdit =
+      (
+        isOwner
+        || canManageCurrentGroup
+      )
+      &&
+      (
+        status === 'PENDING'
+        ||
+        status === 'DRAFT'
+        ||
+        status === 'OPEN'
+      );
+
+    const canClose =
+      (
+        isOwner
+        || canManageCurrentGroup
+      )
+      &&
+      status === 'OPEN';
+
+    const statusText =
+      statusLabel[status]
+      ||
+      status;
+
+    div.innerHTML = `
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
+        <div class="product-name">${escapeHtml(item.name)}</div>
+        <span class="status ${
+          status === 'OPEN'
+            ? 'status-open'
+            : status === 'CLOSED'
+              ? 'status-closed'
+              : ''
+        }">${escapeHtml(statusText)}</span>
+      </div>
+
+      ${renderGroupBuyPriceInfo(item)}
+
+      ${
+        item.ownerLineName
+          ? `<div class="muted" style="margin-top:5px;">開團主：${escapeHtml(item.ownerLineName)}</div>`
+          : ''
+      }
+
+      ${
+        status === 'PENDING'
+          ? `<div class="muted" style="margin-top:6px;">等待群組管理者審核。</div>`
+          : ''
+      }
+
+      ${
+        status === 'SUSPENDED'
+          ? `<div class="error" style="margin-top:6px;">此團已由管理員停權。</div>`
+          : ''
+      }
+
+      <div class="admin-actions">
+        <button class="outline" onclick="openParticipants('${escapeJs(item.buyId)}')">有誰跟團／收款</button>
+        ${
+          isOwner
+            ? `<button class="outline" onclick="openCloneForm('${escapeJs(item.buyId)}')">複製開新團</button>`
+            : ''
+        }
+
+        ${
+          canEdit
+            ? `<button class="outline" onclick="openEditForm('${escapeJs(item.buyId)}')">修改</button>`
+            : ''
+        }
+
+        ${
+          canClose
+            ? `<button class="danger" onclick="changeGroupBuyStatus('adminCloseGroupBuy','${escapeJs(item.buyId)}','確定要關閉這一團嗎？')">關團</button>`
+            : ''
+        }
+
+        ${
+          status === 'OPEN' && (isOwner || isAdmin)
+            ? `<button class="outline" onclick="shareGroupBuyLink('${escapeJs(item.buyId)}')">分享此團</button>`
+            : ''
+        }
+
+        ${
+          isAdmin && status === 'PENDING'
+            ? `<button onclick="superAdminAction('adminApproveGroupBuy','${escapeJs(item.buyId)}','確定核准這一團並立即開放嗎？')">核准開團</button>`
+            : ''
+        }
+
+        ${
+          isAdmin && status !== 'CLOSED' && status !== 'SUSPENDED'
+            ? `<button class="outline" onclick="superAdminAction('adminSuspendGroupBuy','${escapeJs(item.buyId)}','確定要停權這一團嗎？')">停權</button>`
+            : ''
+        }
+
+        ${
+          isAdmin && status !== 'CLOSED'
+            ? `<button class="danger" onclick="superAdminAction('adminForceCloseGroupBuy','${escapeJs(item.buyId)}','確定要由群組管理員強制關閉這一團嗎？')">強制關團</button>`
+            : ''
+        }
+      </div>
+    `;
+
+    box.appendChild(div);
+  });
+}
+
+function setAdminProductMode(mode) {
+  adminProductMode =
+    String(mode || 'SINGLE')
+      .trim()
+      .toUpperCase();
+
+  if (
+    adminProductMode !== 'CATEGORY'
+  ) {
+    adminProductMode = 'SINGLE';
+  }
+
+  const singleFields =
+    document.getElementById(
+      'adminSingleProductFields'
+    );
+
+  const categoryFields =
+    document.getElementById(
+      'adminCategoryFields'
+    );
+
+  const singleTab =
+    document.getElementById(
+      'adminSingleModeTab'
+    );
+
+  const categoryTab =
+    document.getElementById(
+      'adminCategoryModeTab'
+    );
+
+  const modeInput =
+    document.getElementById(
+      'adminProductMode'
+    );
+
+  const isCategory =
+    adminProductMode === 'CATEGORY';
+
+  if (singleFields) {
+    singleFields.style.display =
+      isCategory
+        ? 'none'
+        : 'block';
+  }
+
+  if (categoryFields) {
+    categoryFields.style.display =
+      isCategory
+        ? 'block'
+        : 'none';
+  }
+
+  if (singleTab) {
+    singleTab.classList.toggle(
+      'active',
+      !isCategory
+    );
+
+    singleTab.disabled =
+      !isCategory;
+  }
+
+  if (categoryTab) {
+    categoryTab.classList.toggle(
+      'active',
+      isCategory
+    );
+
+    categoryTab.disabled =
+      isCategory;
+  }
+
+  if (modeInput) {
+    modeInput.value =
+      adminProductMode;
+  }
+
+  const list =
+    document.getElementById(
+      'adminCategoryItems'
+    );
+
+  if (
+    isCategory
+    &&
+    list
+    &&
+    !list.children.length
+  ) {
+    addAdminCategoryItem();
+  }
+}
+
+
+function addAdminCategoryItem(item) {
+  item = item || {};
+
+  const list =
+    document.getElementById(
+      'adminCategoryItems'
+    );
+
+  if (!list) return;
+
+  adminCategoryRowSequence += 1;
+
+  const row =
+    document.createElement('div');
+
+  row.className =
+    'category-editor-row';
+
+  row.dataset.rowId =
+    String(adminCategoryRowSequence);
+
+  row.innerHTML = `
+    <input
+      class="admin-category-item-id"
+      type="hidden"
+      value="${escapeHtml(item.itemId || '')}"
+    >
+
+    <div class="category-editor-grid">
+      <div>
+        <label>主類別</label>
+        <input
+          class="admin-main-category"
+          type="text"
+          maxlength="100"
+          placeholder="例如：舒肥雞胸肉"
+          value="${escapeHtml(item.mainCategory || '')}"
+        >
+      </div>
+
+      <div>
+        <label>次類別</label>
+        <input
+          class="admin-sub-category"
+          type="text"
+          maxlength="100"
+          placeholder="例如：原味"
+          value="${escapeHtml(item.subCategory || '')}"
+        >
+      </div>
+
+      <div>
+        <label>單價</label>
+        <input
+          class="admin-category-price"
+          type="number"
+          min="0"
+          step="1"
+          value="${item.price !== undefined ? Number(item.price || 0) : ''}"
+        >
+      </div>
+
+      <div>
+        <label>單位</label>
+        <input
+          class="admin-category-unit"
+          type="text"
+          maxlength="20"
+          placeholder="例如：包"
+          value="${escapeHtml(item.unit || '')}"
+        >
+      </div>
+    </div>
+
+    <button
+      type="button"
+      class="outline category-editor-remove"
+      onclick="removeAdminCategoryItem(this)"
+    >移除此項</button>
+  `;
+
+  list.appendChild(row);
+}
+
+
+function addAdminMainCategory() {
+  addAdminCategoryItem({});
+
+  const rows =
+    document.querySelectorAll(
+      '#adminCategoryItems .category-editor-row'
+    );
+
+  const lastRow =
+    rows.length
+      ? rows[rows.length - 1]
+      : null;
+
+  const input =
+    lastRow
+      ? lastRow.querySelector(
+          '.admin-main-category'
+        )
+      : null;
+
+  if (input) {
+    input.focus();
+  }
+}
+
+
+function addAdminSubCategory() {
+  const rows =
+    document.querySelectorAll(
+      '#adminCategoryItems .category-editor-row'
+    );
+
+  if (!rows.length) {
+    addAdminMainCategory();
+    return;
+  }
+
+  const previousRow =
+    rows[rows.length - 1];
+
+  const mainCategory =
+    previousRow.querySelector(
+      '.admin-main-category'
+    ).value.trim();
+
+  const priceValue =
+    previousRow.querySelector(
+      '.admin-category-price'
+    ).value;
+
+  const unit =
+    previousRow.querySelector(
+      '.admin-category-unit'
+    ).value.trim();
+
+  const nextItem = {
+    mainCategory:
+      mainCategory,
+    unit:
+      unit
+  };
+
+  if (priceValue !== '') {
+    nextItem.price =
+      Number(priceValue);
+  }
+
+  addAdminCategoryItem(
+    nextItem
+  );
+
+  const updatedRows =
+    document.querySelectorAll(
+      '#adminCategoryItems .category-editor-row'
+    );
+
+  const newRow =
+    updatedRows[
+      updatedRows.length - 1
+    ];
+
+  const input =
+    newRow
+      ? newRow.querySelector(
+          '.admin-sub-category'
+        )
+      : null;
+
+  if (input) {
+    input.focus();
+  }
+}
+
+
+function removeAdminCategoryItem(button) {
+  const row =
+    button
+      ? button.closest(
+          '.category-editor-row'
+        )
+      : null;
+
+  if (row) {
+    row.remove();
+  }
+
+  const list =
+    document.getElementById(
+      'adminCategoryItems'
+    );
+
+  if (
+    adminProductMode === 'CATEGORY'
+    &&
+    list
+    &&
+    !list.children.length
+  ) {
+    addAdminCategoryItem();
+  }
+}
+
+
+function collectAdminCategoryItems() {
+  return Array.from(
+    document.querySelectorAll(
+      '#adminCategoryItems .category-editor-row'
+    )
+  ).map((row, index) => {
+    return {
+      itemId:
+        row.querySelector(
+          '.admin-category-item-id'
+        ).value.trim(),
+
+      mainCategory:
+        row.querySelector(
+          '.admin-main-category'
+        ).value.trim(),
+
+      subCategory:
+        row.querySelector(
+          '.admin-sub-category'
+        ).value.trim(),
+
+      optionName:
+        '',
+
+      price:
+        Number(
+          row.querySelector(
+            '.admin-category-price'
+          ).value
+        ),
+
+      unit:
+        row.querySelector(
+          '.admin-category-unit'
+        ).value.trim(),
+
+      enabled:
+        true,
+
+      sortOrder:
+        index + 1
+    };
+  });
+}
+
+
+function openCreateForm() {
+  if (!currentGroupSessionToken) {
+    alert('請從 LINE 群組的專屬團購入口開啟');
+    return;
+  }
+
+  clearAdminForm();
+  setAdminProductMode('SINGLE');
+
+  adminImageData = '';
+  adminImageOriginalUrl = '';
+  resetAdminImagePreview();
+
+  document.getElementById('adminFormTitle').textContent = '新增團購';
+  document.getElementById('adminStatus').style.display = 'block';
+  document.getElementById('newStatusLabel').style.display = 'block';
+
+  const panel = document.getElementById('adminFormPanel');
+  panel.classList.add('show');
+  document.body.classList.add('modal-open');
+
+  setTimeout(function() {
+    const nameInput = document.getElementById('adminName');
+    if (nameInput) nameInput.focus();
+  }, 50);
+}
+
+
+async function openCloneForm(buyId) {
+  let item =
+    window.adminGroupBuys.find(
+      row =>
+        String(row.buyId)
+        ===
+        String(buyId)
+    );
+
+  if (!item) {
+    alert(
+      '找不到團購資料'
+    );
+    return;
+  }
+
+  item =
+    await loadGroupBuyItemsForRow(
+      item
+    );
+
+  clearAdminForm();
+
+  document
+    .getElementById(
+      'adminName'
+    )
+    .value =
+      item.name || '';
+
+  document
+    .getElementById(
+      'adminDescription'
+    )
+    .value =
+      item.description || '';
+
+  document
+    .getElementById(
+      'adminPrice'
+    )
+    .value =
+      item.price || 0;
+
+  document
+    .getElementById(
+      'adminUnit'
+    )
+    .value =
+      item.unit || '';
+
+  document
+    .getElementById(
+      'adminImageUrl'
+    )
+    .value =
+      item.imageUrl || '';
+
+  const categoryItems =
+    Array.isArray(item.items)
+      ? item.items
+      : [];
+
+  if (categoryItems.length) {
+    setAdminProductMode(
+      'CATEGORY'
+    );
+
+    const list =
+      document.getElementById(
+        'adminCategoryItems'
+      );
+
+    list.innerHTML = '';
+
+    categoryItems.forEach(
+      categoryItem => {
+        addAdminCategoryItem({
+          itemId:
+            '',
+          mainCategory:
+            categoryItem.mainCategory || '',
+          subCategory:
+            categoryItem.subCategory || '',
+          optionName:
+            categoryItem.optionName || '',
+          price:
+            Number(categoryItem.price || 0),
+          unit:
+            categoryItem.unit || ''
+        });
+      }
+    );
+  } else {
+    setAdminProductMode(
+      'SINGLE'
+    );
+  }
+
+  adminImageData = '';
+  adminImageOriginalUrl =
+    item.imageUrl || '';
+
+  if (item.imageUrl) {
+    showAdminImagePreview(
+      item.imageUrl
+    );
+  } else {
+    resetAdminImagePreview();
+  }
+
+  document
+    .getElementById(
+      'adminFormTitle'
+    )
+    .textContent =
+      '複製開新團';
+
+  document
+    .getElementById(
+      'adminStatus'
+    )
+    .value =
+      'PENDING';
+
+  document
+    .getElementById(
+      'adminStatus'
+    )
+    .style.display =
+      'block';
+
+  document
+    .getElementById(
+      'newStatusLabel'
+    )
+    .style.display =
+      'block';
+
+  const panel =
+    document.getElementById(
+      'adminFormPanel'
+    );
+
+  panel.classList.add('show');
+
+  document.body.classList.add(
+    'modal-open'
+  );
+
+  setTimeout(function() {
+    const startInput =
+      document.getElementById(
+        'adminStartAt'
+      );
+
+    if (startInput) {
+      startInput.focus();
+    }
+  }, 50);
+}
+
+
+async function openEditForm(buyId) {
+  let item =
+    window.adminGroupBuys.find(
+      row =>
+        String(row.buyId)
+        ===
+        String(buyId)
+    );
+
+  if (!item) {
+    alert(
+      '找不到團購資料'
+    );
+    return;
+  }
+
+  item =
+    await loadGroupBuyItemsForRow(
+      item
+    );
+
+  clearAdminForm();
+
+  document
+    .getElementById(
+      'adminBuyId'
+    )
+    .value =
+      item.buyId || '';
+
+  document
+    .getElementById(
+      'adminName'
+    )
+    .value =
+      item.name || '';
+
+  document
+    .getElementById(
+      'adminDescription'
+    )
+    .value =
+      item.description || '';
+
+  document
+    .getElementById(
+      'adminPrice'
+    )
+    .value =
+      item.price || 0;
+
+  document
+    .getElementById(
+      'adminUnit'
+    )
+    .value =
+      item.unit || '';
+
+  document
+    .getElementById(
+      'adminImageUrl'
+    )
+    .value =
+      item.imageUrl || '';
+
+  const categoryItems =
+    Array.isArray(item.items)
+      ? item.items
+      : [];
+
+  if (categoryItems.length) {
+    setAdminProductMode(
+      'CATEGORY'
+    );
+
+    const list =
+      document.getElementById(
+        'adminCategoryItems'
+      );
+
+    list.innerHTML = '';
+
+    categoryItems.forEach(
+      categoryItem => {
+        addAdminCategoryItem(
+          categoryItem
+        );
+      }
+    );
+  } else {
+    setAdminProductMode(
+      'SINGLE'
+    );
+  }
+
+  adminImageData = '';
+  adminImageOriginalUrl =
+    item.imageUrl || '';
+
+  if (item.imageUrl) {
+    showAdminImagePreview(
+      item.imageUrl
+    );
+  } else {
+    resetAdminImagePreview();
+  }
+
+  document
+    .getElementById(
+      'adminStartAt'
+    )
+    .value =
+      toDatetimeLocal(
+        item.startAt
+      );
+
+  document
+    .getElementById(
+      'adminEndAt'
+    )
+    .value =
+      toDatetimeLocal(
+        item.endAt
+      );
+
+  document
+    .getElementById(
+      'adminFormTitle'
+    )
+    .textContent =
+      '修改團購';
+
+  document
+    .getElementById(
+      'adminStatus'
+    )
+    .style.display =
+      'none';
+
+  document
+    .getElementById(
+      'newStatusLabel'
+    )
+    .style.display =
+      'none';
+
+  const panel =
+    document.getElementById(
+      'adminFormPanel'
+    );
+
+  panel.classList.add('show');
+
+  document.body.classList.add(
+    'modal-open'
+  );
+
+  setTimeout(function() {
+    const nameInput =
+      document.getElementById(
+        'adminName'
+      );
+
+    if (nameInput) {
+      nameInput.focus();
+    }
+  }, 50);
+}
+
+
+function closeAdminForm() {
+  const panel =
+    document.getElementById('adminFormPanel');
+
+  if (panel) {
+    panel.classList.remove('show');
+  }
+
+  document.body.classList.remove('modal-open');
+}
+
+
+function handleAdminModalBackdrop(event) {
+  if (
+    event
+    &&
+    event.target
+    &&
+    event.target.id === 'adminFormPanel'
+  ) {
+    closeAdminForm();
+  }
+}
+
+
+function clearAdminForm() {
+  [
+    'adminBuyId',
+    'adminName',
+    'adminDescription',
+    'adminPrice',
+    'adminUnit',
+    'adminImageUrl',
+    'adminStartAt',
+    'adminEndAt'
+  ].forEach(id => {
+    const element =
+      document.getElementById(id);
+
+    if (element) {
+      element.value = '';
+    }
+  });
+
+  document
+    .getElementById(
+      'adminStatus'
+    )
+    .value =
+      'PENDING';
+
+  document
+    .getElementById(
+      'adminProductMode'
+    )
+    .value =
+      'SINGLE';
+
+  const categoryList =
+    document.getElementById(
+      'adminCategoryItems'
+    );
+
+  if (categoryList) {
+    categoryList.innerHTML = '';
+  }
+
+  const fileInput =
+    document.getElementById(
+      'adminImageFile'
+    );
+
+  if (fileInput) {
+    fileInput.value = '';
+  }
+
+  adminImageData = '';
+  adminImageOriginalUrl = '';
+
+  resetAdminImagePreview();
+}
+
+
+function previewAdminImage(input) {
+  const file = input.files && input.files[0];
+
+  if (!file) {
+    adminImageData = '';
+    return;
+  }
+
+  if (!/^image\//i.test(file.type)) {
+    alert('請選擇圖片檔');
+    input.value = '';
+    return;
+  }
+
+  // 先限制原始檔 12MB，前端會再壓縮
+  if (file.size > 12 * 1024 * 1024) {
+    alert('圖片太大，請選擇 12MB 以下的圖片');
+    input.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+
+  reader.onload = function(event) {
+    const img = new Image();
+
+    img.onload = function() {
+      const maxSide = 1600;
+
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxSide || height > maxSide) {
+        const scale = Math.min(
+          maxSide / width,
+          maxSide / height
+        );
+
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // 統一轉 JPEG，兼顧畫質與傳輸大小
+      adminImageData = canvas.toDataURL(
+        'image/jpeg',
+        0.86
+      );
+
+      showAdminImagePreview(adminImageData);
+    };
+
+    img.onerror = function() {
+      alert('無法讀取這張圖片');
+      input.value = '';
+    };
+
+    img.src = event.target.result;
+  };
+
+  reader.readAsDataURL(file);
+}
+
+
+function showAdminImagePreview(src) {
+  const box =
+    document.getElementById('adminImagePreviewBox');
+
+  const img =
+    document.getElementById('adminImagePreview');
+
+  img.src = src;
+  box.style.display = 'block';
+}
+
+
+function resetAdminImagePreview() {
+  const box =
+    document.getElementById('adminImagePreviewBox');
+
+  const img =
+    document.getElementById('adminImagePreview');
+
+  if (img) img.removeAttribute('src');
+  if (box) box.style.display = 'none';
+}
+
+
+async function saveAdminForm() {
+  const buyId =
+    document
+      .getElementById(
+        'adminBuyId'
+      )
+      .value
+      .trim();
+
+  const categoryMode =
+    adminProductMode
+    ===
+    'CATEGORY';
+
+  const categoryItems =
+    categoryMode
+      ? collectAdminCategoryItems()
+      : [];
+
+  const payload = {
+    buyId:
+      buyId,
+
+    name:
+      document
+        .getElementById(
+          'adminName'
+        )
+        .value
+        .trim(),
+
+    description:
+      document
+        .getElementById(
+          'adminDescription'
+        )
+        .value
+        .trim(),
+
+    productMode:
+      categoryMode
+        ? 'CATEGORY'
+        : 'SINGLE',
+
+    price:
+      categoryMode
+        ? 0
+        : Number(
+            document
+              .getElementById(
+                'adminPrice'
+              )
+              .value
+            ||
+            0
+          ),
+
+    unit:
+      categoryMode
+        ? ''
+        : document
+            .getElementById(
+              'adminUnit'
+            )
+            .value
+            .trim(),
+
+    items:
+      categoryMode
+        ? categoryItems
+        : (
+            buyId
+              ? []
+              : undefined
+          ),
+
+    imageUrl:
+      adminImageOriginalUrl
+      ||
+      document
+        .getElementById(
+          'adminImageUrl'
+        )
+        .value
+        .trim(),
+
+    imageData:
+      adminImageData,
+
+    ownerLineName:
+      currentUser
+        ? currentUser.displayName
+        : '',
+
+    startAt:
+      document
+        .getElementById(
+          'adminStartAt'
+        )
+        .value,
+
+    endAt:
+      document
+        .getElementById(
+          'adminEndAt'
+        )
+        .value,
+
+    status:
+      document
+        .getElementById(
+          'adminStatus'
+        )
+        .value
+  };
+
+  if (!payload.name) {
+    alert(
+      '請輸入商品名稱'
+    );
+    return;
+  }
+
+  if (!categoryMode && !payload.unit) {
+    alert(
+      '請輸入單位'
+    );
+    return;
+  }
+
+  if (categoryMode) {
+    if (!categoryItems.length) {
+      alert(
+        '請至少新增一筆分類商品'
+      );
+      return;
+    }
+
+    for (
+      let index = 0;
+      index < categoryItems.length;
+      index += 1
+    ) {
+      const row =
+        categoryItems[index];
+
+      if (!row.mainCategory) {
+        alert(
+          '第 '
+          +
+          (index + 1)
+          +
+          ' 筆請輸入主類別'
+        );
+        return;
+      }
+
+      if (!row.subCategory) {
+        alert(
+          '第 '
+          +
+          (index + 1)
+          +
+          ' 筆請輸入次類別'
+        );
+        return;
+      }
+
+      if (
+        !Number.isFinite(row.price)
+        ||
+        row.price < 0
+      ) {
+        alert(
+          '第 '
+          +
+          (index + 1)
+          +
+          ' 筆請輸入正確單價'
+        );
+        return;
+      }
+
+      if (!row.unit) {
+        alert(
+          '第 '
+          +
+          (index + 1)
+          +
+          ' 筆請輸入單位'
+        );
+        return;
+      }
+    }
+  }
+
+  const action =
+    buyId
+      ? 'adminUpdateGroupBuy'
+      : 'adminCreateGroupBuy';
+
+  setAdminBusy(
+    true,
+    buyId
+      ? '儲存中…'
+      : '建立團購中…',
+    '正在寫入 Google Sheet／Google Drive，請勿重複操作。'
+  );
+
+  try {
+    const result =
+      await adminPost(
+        action,
+        payload
+      );
+
+    setAdminBusy(false);
+
+    if (!result.success) {
+      alert(
+        result.message
+        ||
+        '儲存失敗'
+      );
+      return;
+    }
+
+    alert(
+      result.message
+      ||
+      '儲存成功'
+    );
+
+    closeAdminForm();
+
+    const adminPanel =
+      document.getElementById(
+        'adminPanel'
+      );
+
+    if (
+      adminPanel
+      &&
+      adminPanel.style.display
+      !==
+      'none'
+    ) {
+      loadAdminList();
+    }
+
+    loadOpenGroupBuys();
+    loadClosedGroupBuys();
+
+  } catch (error) {
+    setAdminBusy(false);
+
+    alert(
+      error.message
+      ||
+      String(error)
+    );
+  }
+}
+
+
+
+
+async function bindBlankGroupBuysToCurrentGroup() {
+  if (!canUseGroupDataTools) {
+    alert('只有 Super Admin 可以執行資料修復');
+    return;
+  }
+
+  if (
+    !confirm(
+      '只會把 GroupBuys 中 groupId 為空白的資料綁定到目前 LINE 群組；已經有 groupId 的資料不會更動。確定執行嗎？'
+    )
+  ) {
+    return;
+  }
+
+  setAdminBusy(
+    true,
+    '修復資料中…',
+    '正在把空白 groupId 綁定到目前 LINE 群組。'
+  );
+
+  try {
+    const result =
+      await adminPost(
+        'adminBindBlankGroupBuysToCurrentGroup',
+        {}
+      );
+
+    setAdminBusy(false);
+
+    if (!result.success) {
+      alert(
+        result.message
+        ||
+        '修復失敗'
+      );
+      return;
+    }
+
+    alert(
+      result.message
+      ||
+      '修復完成'
+    );
+
+    showGroupBuyDebug();
+    loadAdminList();
+    loadOpenGroupBuys();
+    loadClosedGroupBuys();
+
+  } catch (error) {
+    setAdminBusy(false);
+    alert(
+      error.message
+      ||
+      String(error)
+    );
+  }
+}
+
+
+function showGroupBuyDebug() {
+  if (!canUseGroupDataTools) {
+    alert('只有 Super Admin 可以檢查群組團購資料');
+    return;
+  }
+
+  const box =
+    document.getElementById(
+      'debugGroupBuysBox'
+    );
+
+  if (!box) return;
+
+  box.style.display = 'block';
+  box.innerHTML = '正在檢查群組資料...';
+
+  window.handleGroupBuyDebug =
+    function(result) {
+      if (
+        !result
+        ||
+        !result.success
+      ) {
+        box.innerHTML =
+          '<span class="error">'
+          +
+          escapeHtml(
+            result && result.message
+              ? result.message
+              : '診斷失敗'
+          )
+          +
+          '</span>';
+        return;
+      }
+
+      const rows =
+        Array.isArray(result.rows)
+          ? result.rows
+          : [];
+
+      let html = `
+        <div><strong>目前群組 ID</strong></div>
+        <div style="word-break:break-all;margin:4px 0 10px;">
+          ${escapeHtml(result.currentGroupId || '')}
+        </div>
+        <div><strong>GroupBuys 共 ${rows.length} 筆</strong></div>
+      `;
+
+      if (!rows.length) {
+        html +=
+          '<div class="muted" style="margin-top:6px;">GroupBuys 沒有任何資料。</div>';
+      } else {
+        rows.forEach(function(row) {
+          html += `
+            <div style="border-top:1px solid #ddd;padding:9px 0;margin-top:8px;">
+              <div><strong>${escapeHtml(row.buyId)}｜${escapeHtml(row.name)}</strong></div>
+              <div>狀態：${escapeHtml(row.status)}</div>
+              <div style="word-break:break-all;">資料 groupId：${escapeHtml(row.groupId || '(空白)')}</div>
+              <div>${row.groupMatched ? '✅ 群組相符' : '❌ 群組不相符'}</div>
+              <div>${row.ownerMatched ? '✅ 開團者是目前帳號' : '— 開團者不是目前帳號'}</div>
+            </div>
+          `;
+        });
+      }
+
+      box.innerHTML = html;
+    };
+
+  jsonp(
+    'debugGroupBuys',
+    'handleGroupBuyDebug',
+    {
+      sessionToken:
+        currentGroupSessionToken
+    },
+    function(message) {
+      box.innerHTML =
+        '<span class="error">'
+        +
+        escapeHtml(
+          message || '診斷讀取失敗'
+        )
+        +
+        '</span>';
+    }
+  );
+}
+
+
+async function superAdminAction(
+  action,
+  buyId,
+  confirmText
+) {
+  if (!isAdmin) {
+    alert('你沒有 Super Admin 權限');
+    return;
+  }
+
+  if (
+    confirmText
+    &&
+    !confirm(confirmText)
+  ) {
+    return;
+  }
+
+  setAdminBusy(
+    true,
+    '處理中…',
+    '正在更新團購狀態。'
+  );
+
+  try {
+    const result =
+      await adminPost(
+        action,
+        { buyId: buyId }
+      );
+
+    setAdminBusy(false);
+
+    if (!result.success) {
+      alert(
+        result.message
+        ||
+        '操作失敗'
+      );
+      return;
+    }
+
+    alert(
+      result.message
+      ||
+      '操作完成'
+    );
+
+    loadAdminList();
+    loadOpenGroupBuys();
+    loadClosedGroupBuys();
+
+  } catch (error) {
+    setAdminBusy(false);
+
+    alert(
+      error.message
+      ||
+      String(error)
+    );
+  }
+}
+
+
+async function changeGroupBuyStatus(action, buyId, message) {
+  if (!confirm(message)) return;
+
+  try {
+    const result = await adminPost(action, { buyId: buyId });
+
+    if (!result.success) {
+      alert(result.message || '操作失敗');
+      return;
+    }
+
+    alert(result.message || '操作完成');
+    loadAdminList();
+
+  } catch (error) {
+    alert(error.message || String(error));
+  }
+}
+
+
+/* =========================
+   安全 POST：ID Token 放 POST body
+========================= */
+
+
+function setAdminBusy(busy, title, message) {
+  const overlay = document.getElementById('savingOverlay');
+  const titleBox = document.getElementById('savingTitle');
+  const messageBox = document.getElementById('savingMessage');
+  const saveButton = document.getElementById('adminSaveButton');
+
+  if (title && titleBox) titleBox.textContent = title;
+  if (message && messageBox) messageBox.textContent = message;
+
+  if (overlay) {
+    overlay.classList.toggle('show', busy);
+  }
+
+  document
+    .querySelectorAll(
+      '#adminFormPanel input, #adminFormPanel textarea, #adminFormPanel select, #adminFormPanel button'
+    )
+    .forEach(function(el) {
+      el.disabled = busy;
+    });
+
+  document
+    .querySelectorAll('#adminPanel button')
+    .forEach(function(el) {
+      el.disabled = busy;
+    });
+
+  if (saveButton) {
+    if (busy) {
+      if (!saveButton.dataset.originalText) {
+        saveButton.dataset.originalText = saveButton.textContent;
+      }
+
+      saveButton.textContent = '儲存中…';
+      saveButton.setAttribute('aria-busy', 'true');
+    } else {
+      saveButton.textContent = saveButton.dataset.originalText || '儲存';
+      saveButton.removeAttribute('aria-busy');
+    }
+  }
+}
+
+function adminPost(action, payload) {
+  return new Promise(function(resolve, reject) {
+    const idToken = liff.getIDToken();
+
+    if (!idToken) {
+      reject(new Error('無法取得 LINE ID Token'));
+      return;
+    }
+
+    const requestId =
+      'REQ_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+
+    const timeout = setTimeout(function() {
+      delete pendingAdminRequests[requestId];
+      setAdminBusy(false);
+      reject(new Error('管理操作逾時，請重新整理後確認資料是否已寫入'));
+    }, 45000);
+
+    pendingAdminRequests[requestId] = {
+      resolve: resolve,
+      reject: reject,
+      timeout: timeout
+    };
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = API_URL;
+    form.target = 'gasPostFrame';
+    form.style.display = 'none';
+
+    const fields = {
+      action: action,
+      idToken: idToken,
+      requestId: requestId,
+      parentOrigin: location.origin,
+      groupSessionToken: currentGroupSessionToken,
+      payload: JSON.stringify(payload || {})
+    };
+
+    Object.keys(fields).forEach(function(name) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      input.value = fields[name];
+      form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+
+    setTimeout(function() {
+      form.remove();
+    }, 1000);
+  });
+}
+
+
+document.addEventListener('change', function(event) {
+  if (
+    event.target &&
+    event.target.id === 'proxyOrderName' &&
+    currentOrderType === 'PROXY' &&
+    orderDataReady
+  ) {
+    selectedOrderId = '';
+    loadedRecipientUserId = '';
+    loadSelectedOrderQuantity();
+  }
+});
+
+window.addEventListener('message', function(event) {
+  if (!event.data || event.data.type !== 'GAS_ADMIN_RESPONSE') {
+    return;
+  }
+
+  const requestId = event.data.requestId;
+  const pending = pendingAdminRequests[requestId];
+
+  if (!pending) return;
+
+  clearTimeout(pending.timeout);
+  delete pendingAdminRequests[requestId];
+
+  pending.resolve(event.data.result);
+});
+
+
+
+
+
+
+async function syncCurrentUser() {
+  if (!currentUser) {
+    return {
+      success: false,
+      message: '尚未取得 LINE 使用者資料'
+    };
+  }
+
+  try {
+    const result =
+      await adminPost(
+        'syncUser',
+        {
+          lineName:
+            currentUser.displayName || '',
+          displayName:
+            currentUser.displayName || ''
+        }
+      );
+
+    if (
+      !result
+      ||
+      !result.success
+    ) {
+      throw new Error(
+        result && result.message
+          ? result.message
+          : 'Users 同步失敗'
+      );
+    }
+
+    console.log(
+      'Users 同步成功',
+      result
+    );
+
+    return result;
+
+  } catch (error) {
+    console.warn(
+      'Users 同步失敗',
+      error
+    );
+
+    return {
       success: false,
       message:
         error && error.message
@@ -699,129 +6146,143 @@ function doPost(e) {
           : String(error)
     };
   }
+}
 
-  return postMessageResponse(
-    requestId,
-    result,
-    parentOrigin
+/* =========================
+   JSONP
+========================= */
+
+function jsonp(action, callbackName, extraParams, onError) {
+  const scriptId = 'jsonp_' + callbackName;
+  const old = document.getElementById(scriptId);
+
+  if (old) old.remove();
+
+  const params = new URLSearchParams({
+    action: action,
+    callback: callbackName,
+    t: String(Date.now())
+  });
+
+  Object.keys(extraParams || {}).forEach(key => {
+    params.set(key, extraParams[key]);
+  });
+
+  const script = document.createElement('script');
+  script.id = scriptId;
+  script.src = API_URL + '?' + params.toString();
+
+  let finished = false;
+
+  const timer = setTimeout(function() {
+    if (finished) return;
+    finished = true;
+    script.remove();
+    onError('讀取逾時');
+  }, LOAD_TIMEOUT_MS);
+
+  script.onload = function() {
+    finished = true;
+    clearTimeout(timer);
+  };
+
+  script.onerror = function() {
+    if (finished) return;
+    finished = true;
+    clearTimeout(timer);
+    onError('連線失敗');
+  };
+
+  document.body.appendChild(script);
+}
+
+
+function showRetry(boxId, message, onclickCode) {
+  const box = document.getElementById(boxId);
+
+  box.style.display = 'block';
+  box.innerHTML = `
+    <div class="error">${escapeHtml(message)}</div>
+    <button onclick="${onclickCode}">重新整理</button>
+  `;
+}
+
+
+/* =========================
+   工具
+========================= */
+
+function formatDate(value) {
+  if (!value) return '未設定';
+
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return String(value);
+
+  return date.toLocaleString('zh-TW', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+}
+
+
+function toDatetimeLocal(value) {
+  if (!value) return '';
+
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return '';
+
+  const pad = n => String(n).padStart(2, '0');
+
+  return (
+    d.getFullYear() + '-' +
+    pad(d.getMonth() + 1) + '-' +
+    pad(d.getDate()) + 'T' +
+    pad(d.getHours()) + ':' +
+    pad(d.getMinutes())
   );
 }
 
 
-function outputApiResult(data, callback) {
-  if (callback) {
-    if (!isValidCallbackName(callback)) {
-      return ContentService
-        .createTextOutput('Invalid callback')
-        .setMimeType(ContentService.MimeType.TEXT);
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString('zh-TW');
+}
+
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+
+function escapeJs(value) {
+  return String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'");
+}
+
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') {
+    const panel = document.getElementById('adminFormPanel');
+
+    if (
+      panel
+      &&
+      panel.classList.contains('show')
+    ) {
+      closeAdminForm();
     }
-
-    return ContentService
-      .createTextOutput(callback + '(' + JSON.stringify(data) + ');')
-      .setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
+});
 
-  return jsonResponse(data);
-}
+</script>
 
-
-function jsonResponse(data) {
-  return ContentService
-    .createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-
-function isValidCallbackName(callback) {
-  return /^[a-zA-Z_$][0-9a-zA-Z_$]*(\.[a-zA-Z_$][0-9a-zA-Z_$]*)*$/
-    .test(callback);
-}
-
-
-function postMessageResponse(requestId, result, parentOrigin) {
-  const safeOrigin = /^https:\/\/[a-zA-Z0-9.-]+\.github\.io$/.test(parentOrigin)
-    ? parentOrigin
-    : '*';
-
-  const payload = JSON.stringify({
-    type: 'GAS_ADMIN_RESPONSE',
-    requestId: requestId,
-    result: result
-  }).replace(/</g, '\\u003c');
-
-  const html =
-    '<!doctype html><html><head><meta charset="utf-8"></head><body>' +
-    '<script>' +
-    'window.top.postMessage(' + payload + ',' + JSON.stringify(safeOrigin) + ');' +
-    '</script>' +
-    '</body></html>';
-
-  return HtmlService
-    .createHtmlOutput(html)
-    .setXFrameOptionsMode(
-      HtmlService.XFrameOptionsMode.ALLOWALL
-    );
-}
-
-
-/**
- * 近三個月 CLOSED 團購：
- * 僅使用 closedAt 判斷，不再使用 endAt。
- */
-function getRecentClosedGroupBuysWithSummary() {
-  const groupBuys = getSheetData(CONFIG.SHEETS.GROUP_BUYS);
-
-  const now = new Date();
-  const threeMonthsAgo = new Date(
-    now.getFullYear(),
-    now.getMonth() - 3,
-    now.getDate(),
-    0, 0, 0
-  );
-
-  return groupBuys
-    .filter(item => {
-      const status = String(item.status || '').trim().toUpperCase();
-
-      if (status !== 'CLOSED') return false;
-      if (!item.closedAt) return false;
-
-      const closedDate = new Date(item.closedAt);
-
-      if (isNaN(closedDate.getTime())) return false;
-
-      return closedDate >= threeMonthsAgo && closedDate <= now;
-    })
-    .map(item => {
-      const summary = getGroupBuySummary(item.buyId);
-
-      return {
-        ...item,
-        peopleCount: summary.peopleCount,
-        totalQuantity: summary.totalQuantity
-      };
-    })
-    .sort((a, b) => {
-      return new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime();
-    });
-}
-
-
-function getAllGroupBuysWithSummary() {
-  const groupBuys = getSheetData(CONFIG.SHEETS.GROUP_BUYS);
-
-  return groupBuys
-    .filter(item => String(item.buyId || '').trim() !== '')
-    .map(item => {
-      const summary = getGroupBuySummary(item.buyId);
-
-      return {
-        ...item,
-        peopleCount: summary.peopleCount,
-        totalQuantity: summary.totalQuantity
-      };
-    })
-    .sort((a, b) => {
-      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-    });
-}
+</body>
+</html>
