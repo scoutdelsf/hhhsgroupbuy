@@ -602,9 +602,15 @@
     }
 
     .participant-order {
-      padding: 12px 2px;
+      padding: 12px 10px;
+      margin-bottom: 8px;
+      border-radius: 10px;
       border-bottom: 1px solid #edf3ef;
     }
+
+    #participantsList > .participant-order:nth-child(odd) { background: #fff5d5; }
+    #participantsList > .participant-order:nth-child(even) { background: #ffe5e5; }
+    #participantsList > .participant-order.is-payment-paid { background: #e2f5e6; }
 
     .participant-order-totals {
       width: 100%;
@@ -1162,7 +1168,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.32</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.33</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -2617,6 +2623,9 @@ function renderParticipantPayments() {
     return;
   }
   summary.style.display = 'block';
+  // 每次重繪先還原交錯底色；綠色僅依已驗證身分的付款回覆設定。
+  document.querySelectorAll('#participantsList > .participant-order')
+    .forEach(row => row.classList.remove('is-payment-paid'));
   if (state.paymentError) {
     document.querySelectorAll('#participantsList [data-payment-order]').forEach(slot => slot.innerHTML = '');
     extra.innerHTML = '';
@@ -2631,7 +2640,11 @@ function renderParticipantPayments() {
   state.payments.forEach((payment, index) => {
     const slot = Array.from(document.querySelectorAll('#participantsList [data-payment-order]'))
       .find(element => element.dataset.paymentOrder === payment.orderId);
-    if (slot) slot.innerHTML = renderPaymentCard(payment, index, state.paymentBusy || state.paymentLoading);
+    if (slot) {
+      slot.innerHTML = renderPaymentCard(payment, index, state.paymentBusy || state.paymentLoading);
+      const row = slot.closest('.participant-order');
+      if (row) row.classList.toggle('is-payment-paid', payment.status === 'PAID');
+    }
   });
   // 已取消但仍有實收金額的訂單，只在授權付款資料內提供更正入口。
   extra.innerHTML = state.payments.map((payment, index) => {
