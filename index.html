@@ -1196,7 +1196,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.39</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.40</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1293,13 +1293,18 @@
             <option value="">＋新增代填訂單</option>
           </select>
           <div class="hint">既有訂單請直接選取，包含轉交給你代填的訂單；新增才需要填寫姓名。</div>
-          <label for="proxyRecipient">指定給已登記的當事人</label>
+          <label for="proxyOrderName">訂購姓名</label>
+          <input id="proxyOrderName" type="text" maxlength="40" placeholder="例如：福利社、王小明">
+          <details id="proxyBindingDetails" style="margin-top:12px;">
+          <summary style="cursor:pointer;">進階：綁定訂購本人</summary>
+          <div class="muted" style="margin:8px 0;">這不是指定代填者。綁定後，姓名會改成所選使用者的 LINE 名稱，本人可以查看及修改訂單。福利社等非本人訂單請勿綁定。</div>
+          <label for="proxyRecipient">選擇訂購本人</label>
           <select id="proxyRecipient" onchange="selectProxyRecipient()">
             <option value="">手動填寫姓名（尚未綁定）</option>
           </select>
           <div class="muted" style="margin:6px 0;">綁定後本人可查看及修改；本人實際修改訂購內容前，會保留代填註記。</div>
-          <label for="proxyOrderName">代訂姓名</label>
-          <input id="proxyOrderName" type="text" maxlength="40" placeholder="例如：王小明">
+          </details>
+          <div class="muted" style="margin-top:10px;">要更換代填者，請到「有誰跟團 → 依訂購者 → 轉交代填」。原訂購姓名不變。</div>
           <button type="button" class="outline" style="margin-top:8px;" onclick="resetProxyRecipient()">新增另一筆代填訂單</button>
         </div>
 
@@ -1557,6 +1562,8 @@ async function selectProxyOrder() {
   if (!orderId) { resetProxyRecipient(); return; }
   selectedOrderId = orderId;
   loadedRecipientUserId = '';
+  document.getElementById('proxyBindingDetails').open = false;
+  document.getElementById('proxyRecipient').dataset.confirmedRecipient = '';
   document.getElementById('proxyRecipient').value = '';
   document.getElementById('proxyOrderName').value = '';
   document.getElementById('proxyOrderName').readOnly = true;
@@ -1584,14 +1591,21 @@ async function loadProxyUsers() {
 }
 
 async function selectProxyRecipient() {
-  const recipient = document.getElementById('proxyRecipient').value;
+  const recipientSelect = document.getElementById('proxyRecipient');
+  const recipient = recipientSelect.value;
   if (loadedRecipientUserId && recipient !== loadedRecipientUserId) {
     document.getElementById('proxyRecipient').value = loadedRecipientUserId;
     alert('這筆訂單已綁定當事人，不能改綁其他人');
     return;
   }
   const user = proxyUsers.find(row => row.userId === recipient);
+  if (user && recipient !== loadedRecipientUserId
+    && !confirm('確認 ' + user.lineName + ' 是這筆訂單的訂購本人？\n姓名將改為他的 LINE 名稱，並授予本人查看及修改權限。\n這不是指定接手代填者；福利社等非本人訂單請取消。')) {
+    recipientSelect.value = recipientSelect.dataset.confirmedRecipient || loadedRecipientUserId || '';
+    return;
+  }
   if (user) document.getElementById('proxyOrderName').value = user.lineName;
+  recipientSelect.dataset.confirmedRecipient = recipient;
   document.getElementById('proxyOrderName').readOnly = !!recipient || !!selectedOrderId;
   // 已讀取的手動代填訂單可直接綁定，不另建一筆訂單。
 }
@@ -1600,8 +1614,10 @@ function resetProxyRecipient() {
   if (!orderDataReady) return;
   selectedOrderId = '';
   loadedRecipientUserId = '';
+  document.getElementById('proxyBindingDetails').open = false;
   document.getElementById('proxyOrderSelect').value = '';
   document.getElementById('proxyRecipient').value = '';
+  document.getElementById('proxyRecipient').dataset.confirmedRecipient = '';
   document.getElementById('proxyOrderName').value = '';
   document.getElementById('proxyOrderName').readOnly = false;
   document.getElementById('orderQty').value = 0;
@@ -3170,12 +3186,10 @@ function orderSummaryText(summary, item) {
   return lines.join('\n');
 }
 
-function renderOrderSummary(rows, item) {
+function renderOrderSummaryDetails(rows, item) {
   const summary = buildOrderSummary(rows, item);
   if (!summary.groups.length) return '<div class="message">目前沒有有效訂購，尚無訂購摘要。</div>';
-  return '<div class="muted" style="margin-bottom:10px;">依已登記訂單彙整，不包含付款狀態；未訂購的品項不列入。</div>'
-    + '<button type="button" class="outline" style="margin-bottom:12px;" onclick="copyOrderSummary()">複製訂購摘要</button>'
-    + summary.groups.map(group => '<section class="message" style="margin-bottom:12px;">'
+  return summary.groups.map(group => '<section class="message" style="margin-bottom:12px;">'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;justify-content:space-between;">'
       + '<strong>' + escapeHtml(group.name) + '</strong>'
       + '<span style="font-size:14px;">總數量 ' + formatNumber(group.quantity) + ' ' + escapeHtml(group.unit)
@@ -3186,16 +3200,104 @@ function renderOrderSummary(rows, item) {
           + formatNumber(line.quantity) + ' ' + escapeHtml(line.unit) + '</td></tr>').join('') + '</table>' : '')
       + '</section>').join('')
     + '<div style="text-align:right;font-weight:bold;margin:12px 0;">總數量：' + formatNumber(summary.quantity)
-    + ' ' + escapeHtml(summary.unit) + '｜總金額：$' + formatNumber(summary.amount) + '</div>'
+    + ' ' + escapeHtml(summary.unit) + '｜總金額：$' + formatNumber(summary.amount) + '</div>';
+}
+
+function ensurePackaging(state) {
+  if (!state.packaging) state.packaging = {assignments:{}, groups:[], sequence:0, expanded:false, picker:null};
+  return state.packaging;
+}
+
+function summaryPackages(state) {
+  const packaging = ensurePackaging(state);
+  const packages = packaging.groups.map(group => ({name:group.name + '｜獨立包裝',
+    rows:state.rows.filter((row,index)=>packaging.assignments[index] === group.id)})).filter(group=>group.rows.length);
+  const remainder = state.rows.filter((row,index)=>packaging.assignments[index] == null);
+  if (remainder.length) packages.push({name:packages.length ? '其餘合併訂單' : '全部合併訂單',rows:remainder});
+  return packages;
+}
+
+function packagedSummaryText(state) {
+  const packages = summaryPackages(state);
+  if (!ensurePackaging(state).groups.length) return orderSummaryText(buildOrderSummary(state.rows,state.item),state.item);
+  return packages.map(group => '【' + group.name + '】\n'
+    + orderSummaryText(buildOrderSummary(group.rows,state.item),state.item)).join('\n\n')
+    + '\n\n全部總金額：$' + formatNumber(buildOrderSummary(state.rows,state.item).amount);
+}
+
+function changePackaging(action, index) {
+  const state = participantsViewState;
+  if (!state || state.view !== 'summary') return;
+  const packaging = ensurePackaging(state);
+  if (action === 'toggle') { packaging.expanded = !packaging.expanded; packaging.picker = null; }
+  else {
+    const row = state.rows[index];
+    if (!row) return;
+    if (action === 'independent') {
+      const id = ++packaging.sequence;
+      packaging.groups.push({id:id,name:String(row.orderName || row.lineName || '訂購者') + '（包裝 ' + id + '）'});
+      packaging.assignments[index] = id;
+      packaging.picker = null;
+    } else if (action === 'merge') packaging.picker = index;
+    else if (action === 'confirm') {
+      const select = document.getElementById('packagingTarget');
+      const id = select ? Number(select.value) : NaN;
+      if (!packaging.groups.some(group=>group.id===id)) { alert('請先建立並選擇獨立包裝'); return; }
+      packaging.assignments[index] = id;
+      packaging.picker = null;
+    } else if (action === 'remove') { delete packaging.assignments[index]; packaging.picker = null; }
+    else if (action === 'cancel') packaging.picker = null;
+    packaging.groups = packaging.groups.filter(group=>Object.values(packaging.assignments).includes(group.id));
+  }
+  setParticipantsView('summary');
+}
+
+function renderPackagingControls(state) {
+  const packaging = ensurePackaging(state);
+  if (!packaging.expanded) return '';
+  return '<div class="message"><div class="muted" style="margin-bottom:10px;">僅調整此次摘要。同一包裝可包含多筆訂單；未分組的訂單合併計算。關閉名單後不保留分組。</div>'
+    + state.rows.map((row,index)=>{
+      const group = packaging.groups.find(group=>group.id===packaging.assignments[index]);
+      const choices = packaging.groups.filter(candidate=>candidate.id!==packaging.assignments[index]);
+      const summary = buildOrderSummary([row],state.item);
+      return '<div style="padding:12px 0;border-top:1px solid #e0e5e2;">'
+        + '<div>' + renderProductParticipantName(row) + '</div><div class="muted">訂單 '
+        + escapeHtml(String(row.orderId || index + 1).slice(-8)) + '｜' + formatNumber(summary.quantity)
+        + ' ' + escapeHtml(summary.unit) + '｜$' + formatNumber(summary.amount) + '</div>'
+        + '<div style="margin-top:5px;">' + escapeHtml(group ? '包裝組：' + group.name : '其餘合併訂單') + '</div>'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+        + '<button class="outline" type="button" style="flex:1;width:auto;font-size:14px;padding:9px;" onclick="changePackaging(\'independent\',' + index + ')">獨立包裝</button>'
+        + '<button class="outline" type="button" style="flex:1;width:auto;font-size:14px;padding:9px;" onclick="changePackaging(\'merge\',' + index + ')">併入既有包裝</button></div>'
+        + (group ? '<button class="outline" type="button" style="width:auto;padding:6px 10px;font-size:13px;" onclick="changePackaging(\'remove\',' + index + ')">取消分組</button>' : '')
+        + (packaging.picker === index ? '<div style="margin-top:10px;"><label for="packagingTarget">選擇要併入的獨立包裝</label>'
+          + (choices.length ? '<select id="packagingTarget">' + choices.map(candidate=>'<option value="' + candidate.id + '">' + escapeHtml(candidate.name) + '</option>').join('')
+            + '</select><button type="button" onclick="changePackaging(\'confirm\',' + index + ')">確認整併</button>' : '<div class="muted">請先將另一筆訂單設為獨立包裝。</div>')
+          + '<button class="outline" type="button" onclick="changePackaging(\'cancel\',' + index + ')">取消</button></div>' : '') + '</div>';
+    }).join('') + '</div>';
+}
+
+function renderOrderSummary(rows,item) {
+  const state = participantsViewState || {rows:rows,item:item};
+  const packaging = ensurePackaging(state);
+  const summary = buildOrderSummary(rows,item);
+  if (!summary.groups.length) return '<div class="message">目前沒有有效訂購，尚無訂購摘要。</div>';
+  return '<div class="muted">按訂購數量及金額彙整，不包含個人付款狀態。</div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">'
+    + '<button class="outline" type="button" style="flex:1;width:auto;" aria-expanded="' + packaging.expanded + '" onclick="changePackaging(\'toggle\')">'
+    + (packaging.expanded ? '完成包裝分組' : '調整包裝分組') + '</button>'
+    + '<button class="outline" type="button" style="flex:1;width:auto;" onclick="copyOrderSummary()">複製全部摘要</button></div>'
+    + renderPackagingControls(state)
+    + summaryPackages(state).map(group=>'<section style="margin-top:16px;"><div class="section-title" style="font-size:17px;">'
+      + escapeHtml(group.name) + '</div>' + renderOrderSummaryDetails(group.rows,item) + '</section>').join('')
     + '<details id="orderSummaryTextWrap"><summary style="cursor:pointer;">查看純文字摘要</summary>'
     + '<textarea id="orderSummaryText" readonly aria-label="訂購摘要文字" style="width:100%;height:220px;margin-top:8px;">'
-    + escapeHtml(orderSummaryText(summary,item)) + '</textarea></details>';
+    + escapeHtml(packagedSummaryText(state)) + '</textarea></details>';
 }
 
 async function copyOrderSummary() {
   const state = participantsViewState;
   if (!state || state.view !== 'summary') return;
-  const text = orderSummaryText(buildOrderSummary(state.rows,state.item),state.item);
+  const text = packagedSummaryText(state);
   try {
     if (!navigator.clipboard || !window.isSecureContext) throw new Error('請手動複製');
     await navigator.clipboard.writeText(text);
@@ -3650,6 +3752,8 @@ async function setOrderMode(type) {
     nextType;
   selectedOrderId = '';
   loadedRecipientUserId = '';
+  document.getElementById('proxyBindingDetails').open = false;
+  document.getElementById('proxyRecipient').dataset.confirmedRecipient = '';
   document.getElementById('proxyRecipient').value = '';
   document.getElementById('proxyOrderName').readOnly = false;
   document.getElementById('orderAttributionHint').textContent = '';
@@ -3782,6 +3886,7 @@ async function loadSelectedOrderQuantity() {
 
     selectedOrderId = result.orderId || '';
     loadedRecipientUserId = result.recipientUserId || '';
+    document.getElementById('proxyRecipient').dataset.confirmedRecipient = loadedRecipientUserId;
     if (currentOrderType === 'SELF') {
       const select = document.getElementById('selfOrderSelect');
       select.innerHTML = '';
@@ -4051,6 +4156,8 @@ async function openOrder(buyId) {
 
   selectedOrderId = '';
   loadedRecipientUserId = '';
+  document.getElementById('proxyBindingDetails').open = false;
+  document.getElementById('proxyRecipient').dataset.confirmedRecipient = '';
   document.getElementById('proxyRecipient').value = '';
   document.getElementById('proxyOrderName').readOnly = false;
   document.getElementById('selfOrderSelect').innerHTML = '';
