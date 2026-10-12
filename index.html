@@ -1168,7 +1168,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.35</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.37</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1608,6 +1608,36 @@ window.onload = function () {
 };
 
 
+function showLineLoginPrompt() {
+  document.getElementById('userBox').innerHTML = `
+    <div>目前尚未登入 LINE</div>
+    <button id="lineLoginButton" type="button" style="margin-top:10px;" onclick="loginWithLine()">使用 LINE 登入</button>
+    <div class="muted" style="margin-top:8px;">登入後會回到此頁；群組團購仍須從該群組的專屬入口進入。</div>
+    <div id="lineLoginError" role="alert" style="margin-top:8px;color:#b42318;"></div>
+  `;
+}
+
+async function loginWithLine() {
+  const button = document.getElementById('lineLoginButton');
+  if (!button || button.disabled) return;
+  button.disabled = true;
+  button.textContent = '正在前往 LINE 登入…';
+  document.getElementById('lineLoginError').textContent = '';
+  try {
+    if (liff.isLoggedIn()) {
+      await initLiff();
+      return;
+    }
+    // 保留原本的群組 g 或分享 share 參數，登入後仍走既有權限驗證。
+    liff.login({ redirectUri: window.location.href });
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = '使用 LINE 登入';
+    const message = document.getElementById('lineLoginError');
+    if (message) message.textContent = '無法開始 LINE 登入：' + (error.message || String(error));
+  }
+}
+
 async function initLiff() {
   const userBox =
     document.getElementById('userBox');
@@ -1636,8 +1666,7 @@ async function initLiff() {
         return;
       }
 
-      userBox.innerHTML =
-        '目前尚未登入 LINE';
+      showLineLoginPrompt();
       return;
     }
 
