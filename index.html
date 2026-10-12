@@ -1168,7 +1168,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.33</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.35</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1260,6 +1260,11 @@
         </div>
 
         <div id="proxyNameWrap" style="display:none;">
+          <label for="proxyOrderSelect">選擇代填訂單</label>
+          <select id="proxyOrderSelect" onchange="selectProxyOrder()">
+            <option value="">＋新增代填訂單</option>
+          </select>
+          <div class="hint">既有訂單請直接選取，包含轉交給你代填的訂單；新增才需要填寫姓名。</div>
           <label for="proxyRecipient">指定給已登記的當事人</label>
           <select id="proxyRecipient" onchange="selectProxyRecipient()">
             <option value="">手動填寫姓名（尚未綁定）</option>
@@ -1267,7 +1272,7 @@
           <div class="muted" style="margin:6px 0;">綁定後本人可查看及修改；本人實際修改訂購內容前，會保留代填註記。</div>
           <label for="proxyOrderName">代訂姓名</label>
           <input id="proxyOrderName" type="text" maxlength="40" placeholder="例如：王小明">
-          <button type="button" class="outline" style="margin-top:8px;" onclick="resetProxyRecipient()">換另一位代訂者</button>
+          <button type="button" class="outline" style="margin-top:8px;" onclick="resetProxyRecipient()">新增另一筆代填訂單</button>
         </div>
 
         <div id="selfOrderSelectWrap" style="display:none;">
@@ -1455,6 +1460,18 @@
   </div>
 </div>
 
+<dialog id="proxyTransferDialog" style="width:min(420px,calc(100% - 32px));border:0;border-radius:14px;padding:20px;" oncancel="if(proxyTransferState && proxyTransferState.submitting) event.preventDefault(); else proxyTransferState=null;">
+  <div class="section-title">轉交代填</div>
+  <div id="proxyTransferDescription" class="muted"></div>
+  <label for="proxyTransferTarget">選擇接手者</label>
+  <select id="proxyTransferTarget"><option value="">正在讀取…</option></select>
+  <div class="muted" style="margin-top:8px;">訂購者姓名、訂購內容與收款紀錄保留，修改及提醒付款權限轉給接手者。</div>
+  <div style="display:flex;gap:8px;margin-top:12px;">
+    <button id="proxyTransferCancel" type="button" class="outline" onclick="closeProxyTransferDialog()">取消</button>
+    <button id="proxyTransferSubmit" type="button" onclick="submitProxyTransfer()">確認轉交</button>
+  </div>
+</dialog>
+
 <div id="savingOverlay" class="saving-overlay" aria-live="polite">
   <div class="saving-box">
     <div class="saving-spinner"></div>
@@ -1489,6 +1506,38 @@ let loadedRecipientUserId = '';
 let proxyUsersLoaded = false;
 let proxyUsers = [];
 
+async function loadProxyOrders() {
+  const select = document.getElementById('proxyOrderSelect');
+  select.innerHTML = '<option value="">＋新增代填訂單</option>';
+  const result = await adminPost('getMyOrder', {
+    buyId: currentBuy.buyId, orderType: 'PROXY', listOnly: true
+  });
+  if (!result.success) throw new Error(result.message || '無法讀取代填訂單');
+  (result.orders || []).forEach(order => {
+    const option = document.createElement('option');
+    option.value = order.orderId;
+    option.textContent = order.orderName + '（數量 ' + formatNumber(order.quantity)
+      + (Number(order.quantity) === 0 ? '，已取消' : '') + '） · ' + order.orderId.slice(-6);
+    select.appendChild(option);
+  });
+}
+
+async function selectProxyOrder() {
+  if (!orderDataReady) return;
+  const orderId = document.getElementById('proxyOrderSelect').value;
+  if (!orderId) { resetProxyRecipient(); return; }
+  selectedOrderId = orderId;
+  loadedRecipientUserId = '';
+  document.getElementById('proxyRecipient').value = '';
+  document.getElementById('proxyOrderName').value = '';
+  document.getElementById('proxyOrderName').readOnly = true;
+  // 載入失敗時也不能留下前一張訂單的數量供儲存。
+  document.getElementById('orderQty').value = 0;
+  resetCategoryOrderQuantities();
+  updateOrderTotal();
+  await loadSelectedOrderQuantity();
+}
+
 async function loadProxyUsers() {
   if (proxyUsersLoaded || guestMode) return;
   const result = await adminPost('proxyOrderUsers', {});
@@ -1514,15 +1563,15 @@ async function selectProxyRecipient() {
   }
   const user = proxyUsers.find(row => row.userId === recipient);
   if (user) document.getElementById('proxyOrderName').value = user.lineName;
-  document.getElementById('proxyOrderName').readOnly = !!recipient;
+  document.getElementById('proxyOrderName').readOnly = !!recipient || !!selectedOrderId;
   // 已讀取的手動代填訂單可直接綁定，不另建一筆訂單。
-  if (!selectedOrderId) await loadSelectedOrderQuantity();
 }
 
 function resetProxyRecipient() {
   if (!orderDataReady) return;
   selectedOrderId = '';
   loadedRecipientUserId = '';
+  document.getElementById('proxyOrderSelect').value = '';
   document.getElementById('proxyRecipient').value = '';
   document.getElementById('proxyOrderName').value = '';
   document.getElementById('proxyOrderName').readOnly = false;
@@ -2662,6 +2711,7 @@ function renderPaymentCard(payment, index, busy) {
     + (busy ? 'disabled ' : '') + 'onclick="operateOrderPayment(' + index + ',\'' + action + '\')">' + label + '</button>';
   const controls = [];
   const noticeControls = [];
+  if (payment.canTransferProxy) noticeControls.push(button('TRANSFER', '轉交代填'));
   if (payment.canManage) {
     if (payment.remainingAmount > 0 && payment.status !== 'CANCELLED') {
       controls.push(button('CONFIRM', pending ? '確認已付款' : '標記已付款'));
@@ -2690,6 +2740,10 @@ async function operateOrderPayment(index, action) {
   if (!state || state.paymentBusy || state.paymentLoading) return;
   const payment = (state.payments || [])[index];
   if (!payment) return;
+  if (action === 'TRANSFER') {
+    await openProxyTransferDialog(state, payment);
+    return;
+  }
   const payload = {
     buyId: state.item.buyId, orderId: payment.orderId, paymentAction: action,
     shareToken: guestMode ? currentGuestToken : '',
@@ -2733,11 +2787,91 @@ async function operateOrderPayment(index, action) {
   }
 }
 
+let proxyTransferState = null;
+
+function closeProxyTransferDialog() {
+  const pending = proxyTransferState && proxyTransferState.submitting;
+  if (pending) return;
+  proxyTransferState = null;
+  document.getElementById('proxyTransferDialog').close();
+}
+
+async function openProxyTransferDialog(state, payment) {
+  if (!payment.canTransferProxy) return;
+  const transfer = {state:state,payment:payment,submitting:false};
+  proxyTransferState = transfer;
+  const dialog = document.getElementById('proxyTransferDialog');
+  const select = document.getElementById('proxyTransferTarget');
+  const submit = document.getElementById('proxyTransferSubmit');
+  document.getElementById('proxyTransferDescription').textContent =
+    payment.orderName + '｜目前由 ' + payment.proxyName + ' 代填';
+  select.innerHTML = '<option value="">正在讀取…</option>';
+  select.disabled = true;
+  submit.disabled = true;
+  document.getElementById('proxyTransferCancel').disabled = false;
+  dialog.showModal();
+  state.paymentBusy = true;
+  renderParticipantPayments();
+  try {
+    const result = await adminPost('proxyOrderUsers', {includeSelf:true});
+    if (proxyTransferState !== transfer) return;
+    if (!result.success) throw new Error(result.message || '無法讀取接手者清單');
+    select.innerHTML = '<option value="">請選擇接手者</option>';
+    (result.users || []).filter(user => user.userId !== payment.proxyUserId).forEach(user => {
+      const option = document.createElement('option');
+      option.value = user.userId;
+      option.textContent = user.lineName + '（' + user.userId.slice(-6) + '）';
+      select.appendChild(option);
+    });
+    select.disabled = false;
+    submit.disabled = false;
+  } catch (error) {
+    if (proxyTransferState === transfer) {
+      alert(error.message || '無法讀取接手者');
+      closeProxyTransferDialog();
+    }
+  } finally {
+    state.paymentBusy = false;
+    if (participantsViewState === state) renderParticipantPayments();
+  }
+}
+
+async function submitProxyTransfer() {
+  const transfer = proxyTransferState;
+  if (!transfer || transfer.submitting || participantsViewState !== transfer.state) return;
+  const target = document.getElementById('proxyTransferTarget').value;
+  if (!target) { alert('請選擇接手者'); return; }
+  transfer.submitting = true;
+  transfer.state.paymentBusy = true;
+  ['proxyTransferTarget','proxyTransferSubmit','proxyTransferCancel'].forEach(id => document.getElementById(id).disabled = true);
+  const dialog = document.getElementById('proxyTransferDialog');
+  try {
+    const result = await adminPost('transferOrderProxy', {
+      buyId:transfer.state.item.buyId,orderId:transfer.payment.orderId,
+      proxyUserId:target,expectedProxyUserId:transfer.payment.proxyUserId
+    });
+    if (!result.success) throw new Error(result.message || '轉交失敗');
+    proxyTransferState = null;
+    dialog.close();
+    alert(result.message || '轉交完成');
+    openParticipants(transfer.state.item.buyId);
+  } catch (error) {
+    transfer.submitting = false;
+    proxyTransferState = null;
+    dialog.close();
+    alert(error.message || '轉交失敗');
+    if (participantsViewState === transfer.state) await loadParticipantPayments(transfer.state);
+  } finally {
+    transfer.state.paymentBusy = false;
+    if (participantsViewState === transfer.state) renderParticipantPayments();
+  }
+}
+
 function renderProductParticipantName(row) {
   const name = escapeHtml(String(row.orderName || row.lineName || 'LINE 使用者').trim());
   const sources = [];
   if (String(row.orderType || '').toUpperCase() === 'PROXY') {
-    sources.push(`<span class="participant-source">（由 <span class="participant-line-name">${escapeHtml(row.createdByName || 'LINE 使用者')}</span> 代填）</span>`);
+    sources.push(`<span class="participant-source">（由 <span class="participant-line-name">${escapeHtml(row.proxyName || row.createdByName || 'LINE 使用者')}</span> 代填）</span>`);
   }
   if (row.referrerName) {
     sources.push(`<span class="participant-source">（由 <span class="participant-line-name">${escapeHtml(row.referrerName)}</span> 分享）</span>`);
@@ -2954,7 +3088,7 @@ function openParticipants(buyId) {
 
             const createdByName =
               String(
-                row.createdByName || ''
+                row.proxyName || row.createdByName || ''
               ).trim();
 
             const referrerName =
@@ -3277,8 +3411,10 @@ async function setOrderMode(type) {
     try {
       setOrderLoadingState(true);
       await loadProxyUsers();
+      await loadProxyOrders();
+      document.getElementById('proxyOrderName').value = '';
     } catch (error) {
-      alert(error.message || '無法讀取已登記使用者，可先手動填姓名');
+      alert(error.message || '無法讀取代填訂單，請稍後重試');
     } finally {
       setOrderLoadingState(false);
     }
@@ -3313,7 +3449,7 @@ async function loadSelectedOrderQuantity() {
   if (
     currentOrderType === 'PROXY'
     &&
-    !proxyName
+    !selectedOrderId
   ) {
     const input =
       document.getElementById(
@@ -3376,19 +3512,21 @@ async function loadSelectedOrderQuantity() {
         const option = document.createElement('option');
         option.value = order.orderId;
         option.textContent = order.orderType === 'PROXY'
-          ? order.orderName + '（由 ' + order.createdByName + ' 代填）'
+          ? order.orderName + '（由 ' + (order.proxyName || order.createdByName) + ' 代填）'
           : order.orderName + '（本人訂單）';
         select.appendChild(option);
       });
       select.value = selectedOrderId;
       document.getElementById('selfOrderSelectWrap').style.display = select.options.length > 1 ? 'block' : 'none';
-    } else if (loadedRecipientUserId) {
+    } else {
       document.getElementById('proxyRecipient').value = loadedRecipientUserId;
+      document.getElementById('proxyOrderName').value = result.orderName || '';
+      document.getElementById('proxyOrderSelect').value = selectedOrderId;
       document.getElementById('proxyOrderName').readOnly = true;
     }
     document.getElementById('orderAttributionHint').textContent =
       currentOrderType === 'SELF' && result.orderType === 'PROXY'
-        ? '由 ' + (result.createdByName || 'LINE 使用者') + ' 代填。只有你實際修改品項或數量並儲存，才會取消代填註記。'
+        ? '由 ' + (result.proxyName || result.createdByName || 'LINE 使用者') + ' 代填。只有你實際修改品項或數量並儲存，才會取消代填註記。'
         : '';
 
     if (isCategoryGroupBuy(currentBuy)) {
@@ -3451,6 +3589,7 @@ function setOrderLoadingState(isLoading) {
     document.getElementById('orderModeSelfTab'),
     document.getElementById('orderModeProxyTab'),
     document.getElementById('proxyOrderName'),
+    document.getElementById('proxyOrderSelect'),
     document.getElementById('proxyRecipient'),
     document.getElementById('selfOrderSelect')
   ];
@@ -4092,6 +4231,7 @@ async function confirmOrder() {
             currentOrderType,
 
           orderId: selectedOrderId,
+          createNewProxy: currentOrderType === 'PROXY' && !selectedOrderId,
           recipientUserId: document.getElementById('proxyRecipient').value,
 
           orderName:
@@ -6133,18 +6273,6 @@ function adminPost(action, payload) {
 }
 
 
-document.addEventListener('change', function(event) {
-  if (
-    event.target &&
-    event.target.id === 'proxyOrderName' &&
-    currentOrderType === 'PROXY' &&
-    orderDataReady
-  ) {
-    selectedOrderId = '';
-    loadedRecipientUserId = '';
-    loadSelectedOrderQuantity();
-  }
-});
 
 window.addEventListener('message', function(event) {
   if (!event.data || event.data.type !== 'GAS_ADMIN_RESPONSE') {
