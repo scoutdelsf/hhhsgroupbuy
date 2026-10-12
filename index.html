@@ -39,6 +39,26 @@
       scrollbar-width: none;
     }
     .carousel::-webkit-scrollbar { display: none; }
+    .carousel.is-mouse-dragging {
+      scroll-snap-type: none;
+      scroll-behavior: auto;
+      cursor: grabbing;
+      user-select: none;
+    }
+    .carousel-navigation { display: none; }
+    .carousel-navigation[hidden] { display: none; }
+    @media (hover: hover) and (pointer: fine) {
+      .carousel { cursor: grab; }
+      .carousel-navigation {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-top: 8px;
+      }
+      .carousel-navigation button { width: auto; padding: 8px 14px; font-size: 14px; }
+      .carousel-navigation .muted { text-align: center; }
+    }
     .slide { flex: 0 0 91%; scroll-snap-align: start; }
     .product-name { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
     .description, .info { color: #666; line-height: 1.55; margin-bottom: 7px; }
@@ -1168,7 +1188,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.37</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.38</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -2525,6 +2545,8 @@ function renderCarousel(items, carouselId, dotsId, loadingId, openMode, forcedSt
           );
 
     carousel.style.display = 'none';
+    const navigation = document.getElementById(carouselId + 'Navigation');
+    if (navigation) navigation.hidden = true;
     dots.style.display = 'none';
     return;
   }
@@ -2615,13 +2637,14 @@ function renderCarousel(items, carouselId, dotsId, loadingId, openMode, forcedSt
   });
 
   setupCarouselDots(carousel, dots);
+  setupCarouselMouseNavigation(carousel);
 }
 
 
 function setupCarouselDots(carousel, dotsContainer) {
   let timer = null;
 
-  carousel.addEventListener('scroll', function() {
+  carousel.onscroll = function() {
     clearTimeout(timer);
 
     timer = setTimeout(function() {
@@ -2630,7 +2653,7 @@ function setupCarouselDots(carousel, dotsContainer) {
       let closestDistance = Infinity;
 
       slides.forEach((slide, index) => {
-        const distance = Math.abs(slide.offsetLeft - carousel.scrollLeft);
+        const distance = Math.abs(slide.offsetLeft - slides[0].offsetLeft - carousel.scrollLeft);
 
         if (distance < closestDistance) {
           closestDistance = distance;
@@ -2642,7 +2665,106 @@ function setupCarouselDots(carousel, dotsContainer) {
         dot.classList.toggle('active', index === closestIndex);
       });
     }, 60);
+    if (carousel.updateNavigation) carousel.updateNavigation();
+  };
+}
+
+function carouselSlidePosition(carousel, slide) {
+  const first = carousel.querySelector('.slide');
+  return first ? slide.offsetLeft - first.offsetLeft : 0;
+}
+
+function nearestCarouselSlide(carousel) {
+  const slides = Array.from(carousel.querySelectorAll('.slide'));
+  let nearest = 0;
+  slides.forEach((slide, index) => {
+    if (Math.abs(carouselSlidePosition(carousel, slide) - carousel.scrollLeft)
+      < Math.abs(carouselSlidePosition(carousel, slides[nearest]) - carousel.scrollLeft)) nearest = index;
   });
+  return nearest;
+}
+
+function setupCarouselMouseNavigation(carousel) {
+  if (carousel.updateNavigation) { carousel.updateNavigation(); return; }
+  const navigation = document.createElement('div');
+  navigation.id = carousel.id + 'Navigation';
+  navigation.className = 'carousel-navigation';
+  const previous = document.createElement('button');
+  const next = document.createElement('button');
+  const count = document.createElement('span');
+  previous.type = next.type = 'button';
+  previous.className = next.className = 'outline';
+  previous.textContent = '← 上一個';
+  next.textContent = '下一個 →';
+  count.className = 'muted';
+  previous.setAttribute('aria-label', '上一個團購項目');
+  next.setAttribute('aria-label', '下一個團購項目');
+  navigation.append(previous, count, next);
+  carousel.insertAdjacentElement('afterend', navigation);
+  carousel.updateNavigation = () => {
+    const slides = carousel.querySelectorAll('.slide');
+    const index = nearestCarouselSlide(carousel);
+    navigation.hidden = slides.length < 2 || carousel.style.display === 'none';
+    previous.disabled = index === 0;
+    next.disabled = index >= slides.length - 1;
+    count.textContent = slides.length ? (index + 1) + ' / ' + slides.length : '';
+  };
+  const move = direction => {
+    const slides = carousel.querySelectorAll('.slide');
+    if (!slides.length) return;
+    const index = Math.max(0, Math.min(slides.length - 1, nearestCarouselSlide(carousel) + direction));
+    carousel.scrollTo({left: carouselSlidePosition(carousel, slides[index]), behavior:'smooth'});
+  };
+  previous.addEventListener('click', () => move(-1));
+  next.addEventListener('click', () => move(1));
+  let drag = null;
+  let suppressClickUntil = 0;
+  carousel.addEventListener('pointerdown', event => {
+    suppressClickUntil = 0;
+    // 不接管觸控、觸控筆，或按鈕／表單操作。
+    if (event.pointerType !== 'mouse' || event.button !== 0
+      || event.target.closest('button,a,input,select,textarea,label,[contenteditable]')) return;
+    drag = {id:event.pointerId, x:event.clientX, y:event.clientY, left:carousel.scrollLeft, moved:false};
+  });
+  carousel.addEventListener('pointermove', event => {
+    if (!drag || event.pointerId !== drag.id || event.pointerType !== 'mouse') return;
+    const dx = event.clientX - drag.x;
+    if (!drag.moved) {
+      if (Math.abs(dx) < 6) return;
+      if (Math.abs(event.clientY - drag.y) > Math.abs(dx)) { drag = null; return; }
+      drag.moved = true;
+      carousel.classList.add('is-mouse-dragging');
+      carousel.setPointerCapture(event.pointerId);
+    }
+    event.preventDefault();
+    carousel.scrollLeft = drag.left - dx;
+  });
+  const finishDrag = event => {
+    if (!drag || (event.pointerId != null && event.pointerId !== drag.id)) return;
+    const finished = drag;
+    drag = null;
+    if (carousel.hasPointerCapture(finished.id)) carousel.releasePointerCapture(finished.id);
+    carousel.classList.remove('is-mouse-dragging');
+    if (finished.moved) {
+      suppressClickUntil = Date.now() + 400;
+      const slides = carousel.querySelectorAll('.slide');
+      const index = nearestCarouselSlide(carousel);
+      if (slides.length) carousel.scrollTo({left:carouselSlidePosition(carousel, slides[index]), behavior:'smooth'});
+    }
+  };
+  carousel.addEventListener('pointerup', finishDrag);
+  carousel.addEventListener('pointercancel', finishDrag);
+  carousel.addEventListener('lostpointercapture', finishDrag);
+  carousel.addEventListener('pointerleave', event => { if (drag && !drag.moved) finishDrag(event); });
+  window.addEventListener('blur', finishDrag);
+  carousel.addEventListener('dragstart', event => { if (drag) event.preventDefault(); });
+  carousel.addEventListener('click', event => {
+    if (event.detail > 0 && Date.now() < suppressClickUntil) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+  carousel.updateNavigation();
 }
 
 
