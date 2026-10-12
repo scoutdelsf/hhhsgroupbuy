@@ -64,6 +64,14 @@
     .description, .info { color: #666; line-height: 1.55; margin-bottom: 7px; }
     .summary { margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee; font-weight: bold; }
     .dots { display: flex; justify-content: center; gap: 7px; margin-top: 10px; }
+    #participantsViewTabs button {
+      flex: 1 1 80px;
+      width: auto;
+      min-width: 0;
+      margin-top: 0;
+      padding: 10px 8px;
+      font-size: 14px;
+    }
     .dot { width: 7px; height: 7px; border-radius: 50%; background: #d0d0d0; }
     .dot.active { width: 9px; height: 9px; background: #06c755; }
     .status {
@@ -1188,7 +1196,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.38</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.39</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1464,9 +1472,10 @@
         </div>
       </div>
 
-      <div id="participantsViewTabs" style="display:none;gap:8px;margin-bottom:14px;" role="group" aria-label="跟團名單顯示方式">
+      <div id="participantsViewTabs" style="display:none;gap:8px;flex-wrap:wrap;margin-bottom:14px;" role="group" aria-label="跟團名單顯示方式">
         <button id="participantsByPerson" type="button" onclick="setParticipantsView('person')">依訂購者</button>
         <button id="participantsByProduct" type="button" onclick="setParticipantsView('product')">依商品</button>
+        <button id="participantsBySummary" type="button" onclick="setParticipantsView('summary')">訂購摘要</button>
       </div>
 
       <div id="participantsLoading" class="message">
@@ -2775,11 +2784,13 @@ let participantsRequestSequence = 0;
 function setParticipantsView(view) {
   const state = participantsViewState;
   if (!state) return;
-  state.view = state.category && view === 'product' ? 'product' : 'person';
+  state.view = view === 'summary' ? 'summary' : state.category && view === 'product' ? 'product' : 'person';
   document.getElementById('participantsList').innerHTML =
-    state.view === 'product' ? renderParticipantsByProduct(state.rows, state.item) : state.personHtml;
-  ['person', 'product'].forEach(name => {
-    const button = document.getElementById(name === 'person' ? 'participantsByPerson' : 'participantsByProduct');
+    state.view === 'summary' ? renderOrderSummary(state.rows, state.item)
+      : state.view === 'product' ? renderParticipantsByProduct(state.rows, state.item) : state.personHtml;
+  ['person', 'product', 'summary'].forEach(name => {
+    const button = document.getElementById({person:'participantsByPerson',product:'participantsByProduct',summary:'participantsBySummary'}[name]);
+    if (name === 'product') button.style.display = state.category ? '' : 'none';
     button.disabled = name === state.view;
     button.classList.toggle('outline', name !== state.view);
     button.setAttribute('aria-pressed', String(name === state.view));
@@ -2817,7 +2828,7 @@ function renderParticipantPayments() {
   if (!state) return;
   const summary = document.getElementById('participantsPaymentSummary');
   const extra = document.getElementById('cancelledPaymentOrders');
-  if (state.view === 'product') {
+  if (state.view !== 'person') {
     summary.style.display = 'none';
     extra.innerHTML = '';
     return;
@@ -3084,6 +3095,119 @@ function renderParticipantsByProduct(rows, item) {
   `).join('') || '<div class="message">目前還沒有人購買分類商品。</div>';
 }
 
+function buildOrderSummary(rows, item) {
+  const products = new Map();
+  const keyFor = line => String(line.itemId || JSON.stringify([
+    line.mainCategory || '', line.subCategory || '', line.optionName || '', line.unit || ''
+  ]));
+  const remember = line => {
+    const key = keyFor(line);
+    if (!products.has(key)) products.set(key, {line:line, quantity:0, cents:0});
+    return products.get(key);
+  };
+  (Array.isArray(item.items) ? item.items : []).forEach(remember);
+  const categoryOrder = new Map();
+  products.forEach(product => {
+    const name = String(product.line.mainCategory || '未分類').trim() || '未分類';
+    if (!categoryOrder.has(name)) categoryOrder.set(name, []);
+  });
+  let singleQuantity = 0;
+  let singleCents = 0;
+  rows.forEach(row => {
+    if (row.quantity !== undefined && Number(row.quantity) <= 0) return;
+    const lines = Array.isArray(row.items) ? row.items : [];
+    if (lines.length) {
+      lines.forEach(line => {
+        const quantity = Number(line.quantity || 0);
+        if (!Number.isFinite(quantity) || quantity <= 0) return;
+        const amount = line.lineTotal != null ? Number(line.lineTotal)
+          : quantity * Number(line.unitPrice || 0);
+        const product = remember(line);
+        product.quantity += quantity;
+        product.cents += Math.round((Number.isFinite(amount) ? amount : 0) * 100);
+      });
+    } else {
+      const quantity = Number(row.quantity || 0);
+      if (!Number.isFinite(quantity) || quantity <= 0) return;
+      const amount = row.totalAmount != null ? Number(row.totalAmount)
+        : quantity * Number(row.unitPrice || 0);
+      singleQuantity += quantity;
+      singleCents += Math.round((Number.isFinite(amount) ? amount : 0) * 100);
+    }
+  });
+  products.forEach(product => {
+    if (product.quantity <= 0) return;
+    const name = String(product.line.mainCategory || '未分類').trim() || '未分類';
+    if (!categoryOrder.has(name)) categoryOrder.set(name, []);
+    categoryOrder.get(name).push({
+      name:[product.line.subCategory, product.line.optionName].filter(Boolean).join('／') || '商品',
+      quantity:product.quantity, unit:String(product.line.unit || ''), cents:product.cents
+    });
+  });
+  const groups = Array.from(categoryOrder, ([name, lines]) => {
+    const units = new Set(lines.map(line => line.unit));
+    return {name:name, lines:lines, quantity:lines.reduce((sum,line)=>sum+line.quantity,0),
+      cents:lines.reduce((sum,line)=>sum+line.cents,0), unit:units.size === 1 ? lines[0].unit : '（各品項數量加總）'};
+  }).filter(group => group.quantity > 0);
+  if (singleQuantity > 0) groups.push({
+    name:groups.length ? '未分類／未分項訂單' : String(item.name || '商品'),
+    quantity:singleQuantity, cents:singleCents, unit:String(item.unit || ''), lines:[]
+  });
+  const totalUnits = new Set(groups.map(group => group.unit));
+  return {groups:groups, quantity:groups.reduce((sum,group)=>sum+group.quantity,0),
+    unit:totalUnits.size === 1 ? groups[0].unit : '（各品項數量加總）',
+    amount:groups.reduce((sum,group)=>sum+group.cents,0)/100};
+}
+
+function orderSummaryText(summary, item) {
+  const lines = [String(item.name || '團購') + '｜訂購摘要'];
+  summary.groups.forEach(group => {
+    lines.push('', group.name + '｜總數量 ' + formatNumber(group.quantity) + ' ' + group.unit
+      + '｜金額 $' + formatNumber(group.cents / 100));
+    group.lines.forEach(line => lines.push('  ' + line.name + '：' + formatNumber(line.quantity) + ' ' + line.unit));
+  });
+  lines.push('', '總數量：' + formatNumber(summary.quantity) + ' ' + summary.unit, '總金額：$' + formatNumber(summary.amount));
+  return lines.join('\n');
+}
+
+function renderOrderSummary(rows, item) {
+  const summary = buildOrderSummary(rows, item);
+  if (!summary.groups.length) return '<div class="message">目前沒有有效訂購，尚無訂購摘要。</div>';
+  return '<div class="muted" style="margin-bottom:10px;">依已登記訂單彙整，不包含付款狀態；未訂購的品項不列入。</div>'
+    + '<button type="button" class="outline" style="margin-bottom:12px;" onclick="copyOrderSummary()">複製訂購摘要</button>'
+    + summary.groups.map(group => '<section class="message" style="margin-bottom:12px;">'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;justify-content:space-between;">'
+      + '<strong>' + escapeHtml(group.name) + '</strong>'
+      + '<span style="font-size:14px;">總數量 ' + formatNumber(group.quantity) + ' ' + escapeHtml(group.unit)
+      + '｜金額 $' + formatNumber(group.cents / 100) + '</span></div>'
+      + (group.lines.length ? '<table style="width:100%;margin-top:10px;border-collapse:collapse;">'
+        + group.lines.map(line => '<tr><td style="padding:5px 0;font-size:14px;">' + escapeHtml(line.name)
+          + '</td><td style="text-align:right;padding:5px 0;font-size:14px;white-space:nowrap;">'
+          + formatNumber(line.quantity) + ' ' + escapeHtml(line.unit) + '</td></tr>').join('') + '</table>' : '')
+      + '</section>').join('')
+    + '<div style="text-align:right;font-weight:bold;margin:12px 0;">總數量：' + formatNumber(summary.quantity)
+    + ' ' + escapeHtml(summary.unit) + '｜總金額：$' + formatNumber(summary.amount) + '</div>'
+    + '<details id="orderSummaryTextWrap"><summary style="cursor:pointer;">查看純文字摘要</summary>'
+    + '<textarea id="orderSummaryText" readonly aria-label="訂購摘要文字" style="width:100%;height:220px;margin-top:8px;">'
+    + escapeHtml(orderSummaryText(summary,item)) + '</textarea></details>';
+}
+
+async function copyOrderSummary() {
+  const state = participantsViewState;
+  if (!state || state.view !== 'summary') return;
+  const text = orderSummaryText(buildOrderSummary(state.rows,state.item),state.item);
+  try {
+    if (!navigator.clipboard || !window.isSecureContext) throw new Error('請手動複製');
+    await navigator.clipboard.writeText(text);
+    alert('已複製訂購摘要，可貼到 LINE 或其他地方。');
+  } catch (error) {
+    const wrap = document.getElementById('orderSummaryTextWrap');
+    const field = document.getElementById('orderSummaryText');
+    if (wrap && field) { wrap.open = true; field.focus(); field.select(); }
+    alert('目前環境無法自動複製，請複製下方已選取的摘要文字。');
+  }
+}
+
 function openParticipants(buyId) {
   const requestSequence = ++participantsRequestSequence;
   const item =
@@ -3213,6 +3337,8 @@ function openParticipants(buyId) {
           '目前還沒有人跟團。';
         list.innerHTML = '';
         participantsViewState = { item: item, rows: [], personHtml: '', category: isCategoryGroupBuy(item), view: 'person' };
+        document.getElementById('participantsViewTabs').style.display = 'flex';
+        setParticipantsView('person');
         loadParticipantPayments(participantsViewState);
         return;
       }
@@ -3359,7 +3485,7 @@ function openParticipants(buyId) {
         view: 'person'
       };
       document.getElementById('participantsViewTabs').style.display =
-        participantsViewState.category ? 'flex' : 'none';
+        'flex';
       setParticipantsView('person');
       loadParticipantPayments(participantsViewState);
     };
