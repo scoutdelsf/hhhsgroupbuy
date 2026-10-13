@@ -72,6 +72,14 @@
       padding: 10px 8px;
       font-size: 14px;
     }
+    .pack-color-blue { background: #eaf3ff; }
+    .pack-color-green { background: #eaf7ed; }
+    .pack-color-yellow { background: #fff7d8; }
+    .pack-summary { border-radius:12px; padding:12px; }
+    .pack-summary .message { background:transparent; box-shadow:none; }
+    .pack-alias-controls { display:flex;gap:8px;align-items:center;flex-wrap:wrap; }
+    .pack-alias-controls input { flex:1 1 150px;min-width:0; }
+    .pack-alias-controls button { width:auto;margin-top:0;padding:10px; }
     .dot { width: 7px; height: 7px; border-radius: 50%; background: #d0d0d0; }
     .dot.active { width: 9px; height: 9px; background: #06c755; }
     .status {
@@ -1196,7 +1204,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.40</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.41</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1224,7 +1232,7 @@
   <div id="homePanel">
 
     <div class="section">
-      <div class="home-tabs">
+      <div id="homeTabs" class="home-tabs">
         <button class="home-tab active" data-tab="open" onclick="switchHomeTab('open')">開團中</button>
         <button class="home-tab" data-tab="closed" onclick="switchHomeTab('closed')">近期關閉</button>
         <button class="home-tab" data-tab="suspended" onclick="switchHomeTab('suspended')">停權中</button>
@@ -1701,6 +1709,7 @@ async function initLiff() {
       String(
         initialParams.get('share') || ''
       ).trim();
+    if (initialShareToken) configureSharedBuyView();
 
     if (!liff.isLoggedIn()) {
       if (initialShareToken) {
@@ -1830,7 +1839,20 @@ async function initLiff() {
 
 
 
+function configureSharedBuyView() {
+  ['homeTabs','closedGroupBuySection','suspendedGroupBuySection','adminEntry'].forEach(id => {
+    const element = document.getElementById(id);
+    if (element) element.style.display = 'none';
+  });
+  switchHomeTab('open');
+  const subtitle = document.querySelector('#openGroupBuySection .section-subtitle');
+  if (subtitle) subtitle.textContent = '分享給你的團購';
+  window.currentClosedGroupBuys = [];
+  window.currentSuspendedGroupBuys = [];
+}
+
 async function loadGuestSharedGroupBuy() {
+  configureSharedBuyView();
   const userBox =
     document.getElementById(
       'userBox'
@@ -2211,6 +2233,7 @@ function checkAdminStatus() {
 
 
 function switchHomeTab(tabName) {
+  if (guestMode && tabName !== 'open') return;
   const paneMap = {
     open: 'openGroupBuySection',
     closed: 'closedGroupBuySection',
@@ -3210,7 +3233,7 @@ function ensurePackaging(state) {
 
 function summaryPackages(state) {
   const packaging = ensurePackaging(state);
-  const packages = packaging.groups.map(group => ({name:group.name + '｜獨立包裝',
+  const packages = packaging.groups.map(group => ({id:group.id,name:group.name + '｜獨立包裝',alias:group.name,
     rows:state.rows.filter((row,index)=>packaging.assignments[index] === group.id)})).filter(group=>group.rows.length);
   const remainder = state.rows.filter((row,index)=>packaging.assignments[index] == null);
   if (remainder.length) packages.push({name:packages.length ? '其餘合併訂單' : '全部合併訂單',rows:remainder});
@@ -3252,6 +3275,23 @@ function changePackaging(action, index) {
   setParticipantsView('summary');
 }
 
+function packagingColor(id) {
+  return id == null ? '' : ['pack-color-blue','pack-color-green','pack-color-yellow'][(id - 1) % 3];
+}
+
+function renamePackaging(id) {
+  const state = participantsViewState;
+  if (!state || state.view !== 'summary') return;
+  const group = ensurePackaging(state).groups.find(group=>group.id===id);
+  const field = document.getElementById('packAlias' + id);
+  if (!group || !field) return;
+  const alias = field.value.trim();
+  if (!alias) { alert('請輸入包裝別名'); return; }
+  if (alias.length > 60) { alert('包裝別名最多 60 個字'); return; }
+  group.name = alias;
+  setParticipantsView('summary');
+}
+
 function renderPackagingControls(state) {
   const packaging = ensurePackaging(state);
   if (!packaging.expanded) return '';
@@ -3260,7 +3300,7 @@ function renderPackagingControls(state) {
       const group = packaging.groups.find(group=>group.id===packaging.assignments[index]);
       const choices = packaging.groups.filter(candidate=>candidate.id!==packaging.assignments[index]);
       const summary = buildOrderSummary([row],state.item);
-      return '<div style="padding:12px 0;border-top:1px solid #e0e5e2;">'
+      return '<div class="' + packagingColor(group ? group.id : null) + '" style="padding:12px;margin:8px 0;border-radius:10px;border-top:1px solid #e0e5e2;">'
         + '<div>' + renderProductParticipantName(row) + '</div><div class="muted">訂單 '
         + escapeHtml(String(row.orderId || index + 1).slice(-8)) + '｜' + formatNumber(summary.quantity)
         + ' ' + escapeHtml(summary.unit) + '｜$' + formatNumber(summary.amount) + '</div>'
@@ -3287,8 +3327,12 @@ function renderOrderSummary(rows,item) {
     + (packaging.expanded ? '完成包裝分組' : '調整包裝分組') + '</button>'
     + '<button class="outline" type="button" style="flex:1;width:auto;" onclick="copyOrderSummary()">複製全部摘要</button></div>'
     + renderPackagingControls(state)
-    + summaryPackages(state).map(group=>'<section style="margin-top:16px;"><div class="section-title" style="font-size:17px;">'
-      + escapeHtml(group.name) + '</div>' + renderOrderSummaryDetails(group.rows,item) + '</section>').join('')
+    + summaryPackages(state).map(group=>'<section class="pack-summary ' + packagingColor(group.id) + '" style="margin-top:16px;"><div class="section-title" style="font-size:17px;">'
+      + escapeHtml(group.name) + '</div>'
+      + (group.id != null ? '<details style="margin-bottom:10px;"><summary style="cursor:pointer;">修改包裝別名</summary><label for="packAlias' + group.id + '">包裝別名</label>'
+        + '<div class="pack-alias-controls"><input id="packAlias' + group.id + '" type="text" maxlength="60" value="' + escapeHtml(group.alias)
+        + '"><button class="outline" type="button" onclick="renamePackaging(' + group.id + ')">儲存名稱</button></div></details>' : '')
+      + renderOrderSummaryDetails(group.rows,item) + '</section>').join('')
     + '<details id="orderSummaryTextWrap"><summary style="cursor:pointer;">查看純文字摘要</summary>'
     + '<textarea id="orderSummaryText" readonly aria-label="訂購摘要文字" style="width:100%;height:220px;margin-top:8px;">'
     + escapeHtml(packagedSummaryText(state)) + '</textarea></details>';
