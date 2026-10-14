@@ -763,6 +763,7 @@
       margin-bottom: 4px;
       scrollbar-width: none;
     }
+    #homeTabs[hidden] { display: none !important; }
 
     .home-tabs::-webkit-scrollbar {
       display: none;
@@ -1204,17 +1205,18 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.42</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.43</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
   <div id="homeToolbar" class="home-toolbar">
     <div id="userBox" class="user-box">正在確認 LINE 身分...</div>
 
-    <div id="adminEntry" style="display:none;" class="section">
+    <div id="adminEntry" class="section" aria-busy="true">
       <div class="toolbar-actions" style="display:grid;grid-template-columns:1fr;gap:10px;">
-        <button onclick="openAdminPanel()">開團／團主管理區</button>
+        <button id="adminEntryButton" type="button" disabled aria-describedby="adminEntryHint" onclick="openAdminPanel()">開團／團主管理區</button>
       </div>
+      <div id="adminEntryHint" class="muted" style="margin-top:8px;" role="status" aria-live="polite">驗證完成後即可操作</div>
       <div id="myHostStats" class="my-host-stats">
         <div>我的主揪開團中：<strong>--</strong></div>
         <div>我的主揪已結案：<strong>--</strong></div>
@@ -1691,7 +1693,30 @@ async function loginWithLine() {
   }
 }
 
+let managementEntryStatus = 'checking';
+
+function setManagementEntryState(state) {
+  if (guestMode || managementEntryStatus === 'guest') state = 'guest';
+  managementEntryStatus = state;
+  const entry = document.getElementById('adminEntry');
+  const button = document.getElementById('adminEntryButton');
+  const hint = document.getElementById('adminEntryHint');
+  const ready = state === 'ready' && !!currentGroupSessionToken && !guestMode;
+  if (entry) {
+    entry.style.display = state === 'guest' ? 'none' : 'block';
+    entry.setAttribute('aria-busy', String(state === 'checking' || state === 'group'));
+  }
+  if (button) button.disabled = !ready;
+  if (hint) {
+    hint.textContent = ready ? '' : ({checking:'驗證完成後即可操作',login:'登入並從群組入口進入後可使用',
+      group:'正在確認群組入口…',error:'尚未完成群組驗證',guest:''}[state] || '驗證完成後即可操作');
+    hint.style.display = ready || state === 'guest' ? 'none' : 'block';
+  }
+}
+
 async function initLiff() {
+  currentGroupSessionToken = '';
+  setManagementEntryState('checking');
   const userBox =
     document.getElementById('userBox');
 
@@ -1721,6 +1746,7 @@ async function initLiff() {
       }
 
       showLineLoginPrompt();
+      setManagementEntryState('login');
       return;
     }
 
@@ -1787,6 +1813,7 @@ async function initLiff() {
       return;
     }
 
+    setManagementEntryState('group');
     const groupResult =
       await adminPost(
         'resolveGroupContext',
@@ -1840,10 +1867,15 @@ async function initLiff() {
 
 
 function configureSharedBuyView() {
+  setManagementEntryState('guest');
   ['homeTabs','closedGroupBuySection','suspendedGroupBuySection','adminEntry'].forEach(id => {
     const element = document.getElementById(id);
     if (element) element.style.display = 'none';
   });
+  const tabs = document.getElementById('homeTabs');
+  if (tabs) tabs.hidden = true;
+  const toolbar = document.getElementById('homeToolbar');
+  if (toolbar) toolbar.style.gridTemplateColumns = 'minmax(0, 1fr)';
   switchHomeTab('open');
   const subtitle = document.querySelector('#openGroupBuySection .section-subtitle');
   if (subtitle) subtitle.textContent = '分享給你的團購';
@@ -2169,6 +2201,7 @@ function showGroupAccessError(
   title,
   text
 ) {
+  setManagementEntryState('error');
   const box =
     document.getElementById(
       'groupAccessMessage'
@@ -2220,8 +2253,7 @@ function showGroupAccessError(
 
 function checkAdminStatus() {
   // 有有效群組工作階段的使用者，都可以建立與管理自己的團。
-  const entry = document.getElementById('adminEntry');
-  if (entry) entry.style.display = 'block';
+  setManagementEntryState('ready');
 
   isAdmin = false;
   canUseGroupDataTools = false;
@@ -4743,7 +4775,7 @@ function handleOrderModalBackdrop(event) {
 ========================= */
 
 function openAdminPanel() {
-  if (!currentGroupSessionToken) {
+  if (guestMode || !currentGroupSessionToken || managementEntryStatus !== 'ready') {
     alert('請從 LINE 群組的專屬團購入口開啟');
     return;
   }
