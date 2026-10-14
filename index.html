@@ -1205,7 +1205,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.43</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.44</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1526,6 +1526,16 @@
   </div>
 </div>
 
+<dialog id="reopenBuyDialog" style="width:min(420px,calc(100% - 32px));border:0;border-radius:14px;padding:20px;" oncancel="if(reopenBuyState && reopenBuyState.busy) event.preventDefault(); else reopenBuyState=null;">
+  <div class="section-title">重新開團</div>
+  <div id="reopenBuyName" style="font-weight:bold;margin:10px 0;"></div>
+  <div class="muted">沿用原訂單、付款及分享連結。重新開啟後，訂購者可再次新增或修改訂購內容。</div>
+  <label for="reopenBuyEndAt">新的截止時間</label>
+  <input id="reopenBuyEndAt" type="datetime-local" required>
+  <div id="reopenBuyError" class="error" style="margin-top:8px;" role="alert"></div>
+  <button id="reopenBuySubmit" type="button" onclick="submitReopenBuy()">確認重新開團</button>
+  <button id="reopenBuyCancel" class="outline" type="button" onclick="closeReopenBuy()">取消</button>
+</dialog>
 <iframe id="gasPostFrame" name="gasPostFrame"></iframe>
 
 <script>
@@ -5212,6 +5222,12 @@ function renderAdminList() {
         }
 
         ${
+          status === 'CLOSED' && (isOwner || canManageCurrentGroup)
+            ? `<button class="outline" onclick="openReopenBuy('${escapeJs(item.buyId)}')">重新開團</button>`
+            : ''
+        }
+
+        ${
           status === 'OPEN' && (isOwner || isAdmin)
             ? `<button class="outline" onclick="shareGroupBuyLink('${escapeJs(item.buyId)}')">分享此團</button>`
             : ''
@@ -6610,6 +6626,53 @@ async function superAdminAction(
   }
 }
 
+
+let reopenBuyState = null;
+
+function openReopenBuy(buyId) {
+  if (reopenBuyState && reopenBuyState.busy) return;
+  const item = (window.adminGroupBuys || []).find(row=>String(row.buyId)===String(buyId));
+  if (!item || String(item.status || '').toUpperCase() !== 'CLOSED') { alert('請重新讀取已結單的團購'); return; }
+  reopenBuyState = {buyId:String(buyId),busy:false};
+  document.getElementById('reopenBuyName').textContent = item.name || '團購';
+  document.getElementById('reopenBuyEndAt').value = '';
+  document.getElementById('reopenBuyError').textContent = '';
+  ['reopenBuyEndAt','reopenBuySubmit','reopenBuyCancel'].forEach(id=>document.getElementById(id).disabled=false);
+  document.getElementById('reopenBuyDialog').showModal();
+}
+
+function closeReopenBuy() {
+  if (reopenBuyState && reopenBuyState.busy) return;
+  reopenBuyState = null;
+  document.getElementById('reopenBuyDialog').close();
+}
+
+async function submitReopenBuy() {
+  const state = reopenBuyState;
+  if (!state || state.busy) return;
+  const value = document.getElementById('reopenBuyEndAt').value;
+  const date = new Date(value);
+  const errorBox = document.getElementById('reopenBuyError');
+  if (!value || isNaN(date.getTime()) || date.getTime() <= Date.now()) {
+    errorBox.textContent = '請設定晚於現在的新截止時間'; return;
+  }
+  state.busy = true;
+  errorBox.textContent = '';
+  ['reopenBuyEndAt','reopenBuySubmit','reopenBuyCancel'].forEach(id=>document.getElementById(id).disabled=true);
+  try {
+    const result = await adminPost('adminReopenGroupBuy',{buyId:state.buyId,endAt:date.toISOString()});
+    if (!result.success) throw new Error(result.message || '重新開團失敗');
+    reopenBuyState = null;
+    document.getElementById('reopenBuyDialog').close();
+    alert(result.message || '已重新開團');
+    loadAdminList();
+  } catch(error) {
+    errorBox.textContent = error.message || String(error);
+  } finally {
+    state.busy = false;
+    ['reopenBuyEndAt','reopenBuySubmit','reopenBuyCancel'].forEach(id=>document.getElementById(id).disabled=false);
+  }
+}
 
 async function changeGroupBuyStatus(action, buyId, message) {
   if (!confirm(message)) return;
