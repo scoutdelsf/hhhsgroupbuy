@@ -1209,7 +1209,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.46</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.47</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1631,6 +1631,19 @@ async function loadProxyOrders() {
   });
   if (!result.success) throw new Error(result.message || '無法讀取代填訂單');
   const orders = Array.isArray(result.orders) ? result.orders : [];
+  const nameCounts = new Map();
+  const nameSequence = new Map();
+  const labels = new Map();
+  orders.forEach(order => {
+    const name = String(order.orderName || '').trim();
+    nameCounts.set(name, (nameCounts.get(name) || 0) + 1);
+  });
+  orders.forEach(order => {
+    const name = String(order.orderName || '').trim();
+    const sequence = (nameSequence.get(name) || 0) + 1;
+    nameSequence.set(name, sequence);
+    labels.set(String(order.orderId), name + (nameCounts.get(name) > 1 ? '・第 ' + sequence + ' 筆' : ''));
+  });
   [false, true].forEach(bound => {
     const matches = orders.filter(order => !!String(order.recipientUserId || '').trim() === bound);
     if (!matches.length) return;
@@ -1639,8 +1652,10 @@ async function loadProxyOrders() {
     matches.forEach(order => {
     const option = document.createElement('option');
     option.value = order.orderId;
-    option.textContent = (String(order.recipientUserId || '').trim() ? '[綁] ' : '') + order.orderName + '（數量 ' + formatNumber(order.quantity)
-      + (Number(order.quantity) === 0 ? '，已取消' : '') + '） · ' + order.orderId.slice(-6);
+    const unit = isCategoryGroupBuy(currentBuy) ? '件' : String(currentBuy.unit || '');
+    option.textContent = (String(order.recipientUserId || '').trim() ? '[綁] ' : '') + labels.get(String(order.orderId))
+      + '（' + formatNumber(order.quantity) + (unit ? ' ' + unit : '')
+      + (Number(order.quantity) === 0 ? '，已取消' : '') + '）';
     group.appendChild(option);
     });
     select.appendChild(group);
