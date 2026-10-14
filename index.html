@@ -1204,7 +1204,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.41</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.42</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1953,7 +1953,7 @@ async function loadGuestSharedGroupBuy() {
       'openCarousel',
       'openDots',
       'openLoading',
-      true
+      String(result.data.status || '').trim().toUpperCase() === 'OPEN'
     );
 
   } catch (error) {
@@ -2673,7 +2673,9 @@ function renderCarousel(items, carouselId, dotsId, loadingId, openMode, forcedSt
               </div>`
             : ''
         }`
-          : ''}
+          : forcedStatus === 'SUSPENDED' ? ''
+            : `<div class="muted" style="margin-top:10px;">已結單，不能新增或修改訂購內容。</div>
+               <button class="outline" onclick="openParticipants('${escapeJs(item.buyId)}')">有誰跟團／訂購摘要</button>`}
       </div>
     `;
 
