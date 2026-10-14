@@ -130,6 +130,10 @@
       padding-top:14px;
       margin-top:14px;
     }
+    .admin-row.admin-color-blue { background:#eaf3ff; }
+    .admin-row.admin-color-green { background:#eaf7ed; }
+    .admin-row.admin-color-yellow { background:#fff7d8; }
+    .admin-row[class*="admin-color-"] { padding:14px;border-radius:12px; }
     .admin-actions {
       display:grid;
       grid-template-columns:1fr 1fr;
@@ -1205,7 +1209,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.44</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.10.46</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1298,24 +1302,33 @@
         </div>
 
         <div id="proxyNameWrap" style="display:none;">
+          <div style="display:grid;gap:8px;margin-top:12px;">
+            <button id="proxyStartNew" type="button" onclick="chooseProxyWorkflow('new')">＋ 新增一筆訂購單</button>
+            <button id="proxyStartManage" type="button" class="outline" onclick="chooseProxyWorkflow('manage')">管理我代填的訂單</button>
+          </div>
+          <div id="proxyExistingOrders" style="display:none;">
           <label for="proxyOrderSelect">選擇代填訂單</label>
           <select id="proxyOrderSelect" onchange="selectProxyOrder()">
-            <option value="">＋新增代填訂單</option>
+            <option value="">請選擇既有代填訂單</option>
           </select>
-          <div class="hint">既有訂單請直接選取，包含轉交給你代填的訂單；新增才需要填寫姓名。</div>
+          <div class="hint">只列出我目前負責代填的訂單，包含別人轉交給我的訂單。</div>
+          <div class="muted" style="margin-top:6px;">[綁] 表示已綁定訂購本人，不表示已轉交代填。</div>
+          </div>
+          <div id="proxyOrderFields" style="display:none;">
+          <div id="proxyBindingStatus" style="display:none;margin-top:8px;color:#1569bc;font-size:14px;" role="status"></div>
           <label for="proxyOrderName">訂購姓名</label>
           <input id="proxyOrderName" type="text" maxlength="40" placeholder="例如：福利社、王小明">
           <details id="proxyBindingDetails" style="margin-top:12px;">
-          <summary style="cursor:pointer;">進階：綁定訂購本人</summary>
+          <summary id="proxyBindingSummary" style="cursor:pointer;">交給訂購本人</summary>
           <div class="muted" style="margin:8px 0;">這不是指定代填者。綁定後，姓名會改成所選使用者的 LINE 名稱，本人可以查看及修改訂單。福利社等非本人訂單請勿綁定。</div>
           <label for="proxyRecipient">選擇訂購本人</label>
           <select id="proxyRecipient" onchange="selectProxyRecipient()">
             <option value="">手動填寫姓名（尚未綁定）</option>
           </select>
-          <div class="muted" style="margin:6px 0;">綁定後本人可查看及修改；本人實際修改訂購內容前，會保留代填註記。</div>
+          <div class="muted" style="margin:6px 0;">選好本人後，請按下方「儲存修改」完成交付。本人實際修改訂購內容前，會保留代填註記。</div>
           </details>
           <div class="muted" style="margin-top:10px;">要更換代填者，請到「有誰跟團 → 依訂購者 → 轉交代填」。原訂購姓名不變。</div>
-          <button type="button" class="outline" style="margin-top:8px;" onclick="resetProxyRecipient()">新增另一筆代填訂單</button>
+          </div>
         </div>
 
         <div id="selfOrderSelectWrap" style="display:none;">
@@ -1325,7 +1338,7 @@
         <div id="orderAttributionHint" class="muted" style="margin-top:8px;"></div>
 
         <div id="singleOrderControls">
-          <label for="orderQty" style="margin-top:16px;">我要的總數量</label>
+          <label id="orderQtyLabel" for="orderQty" style="margin-top:16px;">我要的總數量</label>
           <div class="order-quantity-row">
             <button id="orderMinusButton" type="button" class="outline" onclick="changeOrderQuantity(-1)">−</button>
             <input type="number" id="orderQty" min="0" max="9999" step="1" value="0" inputmode="numeric" oninput="updateOrderTotal()">
@@ -1341,13 +1354,13 @@
         </div>
 
         <div id="orderLoadingHint">訂單讀取中，請稍候…</div>
-        <div class="muted" style="margin-top:6px;">
+        <div id="orderFormNote" class="muted" style="margin-top:6px;">
           本人訂單：同一位使用者在同一團只保留一筆；再次儲存會更新原本數量。<br>
-          代人下單：可替不同姓名分別建立訂單；相同姓名再次儲存會更新該筆代填訂單。
+          代人下單：新增請填寫姓名；修改請從「管理我代填的訂單」選取，不能靠姓名尋找或覆蓋訂單。
         </div>
-        <div class="summary">預估金額：<span id="orderTotal">$0</span></div>
+        <div id="orderTotalWrap" class="summary">預估金額：<span id="orderTotal">$0</span></div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px;">
+        <div id="orderFooter" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px;">
           <button id="orderSaveButton" onclick="confirmOrder()">儲存訂單</button>
           <button type="button" class="secondary" onclick="closeOrder()">取消</button>
         </div>
@@ -1559,29 +1572,90 @@ let selectedOrderId = '';
 let loadedRecipientUserId = '';
 let proxyUsersLoaded = false;
 let proxyUsers = [];
+let proxyWorkflow = '';
+let proxyOrderLoaded = false;
+
+function proxyFormVisible() {
+  return currentOrderType !== 'PROXY' || proxyWorkflow === 'new'
+    || (proxyWorkflow === 'manage' && !!selectedOrderId && proxyOrderLoaded);
+}
+
+function refreshProxyWorkflowUI() {
+  const proxy = currentOrderType === 'PROXY';
+  const visible = proxyFormVisible();
+  document.getElementById('proxyExistingOrders').style.display = proxy && proxyWorkflow === 'manage' ? 'block' : 'none';
+  document.getElementById('proxyOrderFields').style.display = proxy && visible ? 'block' : 'none';
+  document.getElementById('proxyBindingDetails').style.display = proxy && proxyWorkflow === 'manage' && proxyOrderLoaded ? 'block' : 'none';
+  const category = !!currentBuy && isCategoryGroupBuy(currentBuy);
+  document.getElementById('singleOrderControls').style.display = visible && !category ? 'block' : 'none';
+  document.getElementById('categoryOrderControls').style.display = visible && category ? 'block' : 'none';
+  ['orderTotalWrap','orderFormNote'].forEach(id=>document.getElementById(id).style.display=visible?'block':'none');
+  const save = document.getElementById('orderSaveButton');
+  save.style.display = visible ? '' : 'none';
+  save.disabled = !visible || !orderDataReady;
+  if (orderDataReady) save.textContent = proxy ? (proxyWorkflow==='new' ? '儲存新增訂購單' : '儲存修改') : '儲存訂單';
+  document.getElementById('orderFooter').style.gridTemplateColumns = visible ? '1fr 1fr' : '1fr';
+  document.getElementById('orderQtyLabel').textContent = proxy ? '訂購數量' : '我要的總數量';
+  document.getElementById('proxyStartNew').setAttribute('aria-pressed',String(proxyWorkflow==='new'));
+  document.getElementById('proxyStartManage').setAttribute('aria-pressed',String(proxyWorkflow==='manage'));
+}
+
+async function chooseProxyWorkflow(mode) {
+  if (!orderDataReady || currentOrderType !== 'PROXY' || !['new','manage'].includes(mode)) return;
+  if (proxyWorkflow === mode && (mode === 'new' || selectedOrderId)) return;
+  proxyWorkflow = mode;
+  resetProxyRecipient();
+  refreshOrderTypeUI();
+  if (mode === 'new') { document.getElementById('proxyOrderName').focus(); return; }
+  setOrderLoadingState(true);
+  try {
+    await loadProxyOrders();
+    await loadProxyUsers();
+  } catch(error) { alert(error.message || '無法讀取代填訂單'); }
+  finally { setOrderLoadingState(false); }
+}
+
+function refreshProxyBindingMarker() {
+  const bound = currentOrderType === 'PROXY' && proxyOrderLoaded && !!selectedOrderId && !!loadedRecipientUserId;
+  const status = document.getElementById('proxyBindingStatus');
+  status.style.display = bound ? 'block' : 'none';
+  status.textContent = bound ? '[綁] 已綁定訂購本人，本人可查看及操作自己的訂單。' : '';
+  document.getElementById('proxyBindingSummary').textContent = bound ? '[綁] 已交給訂購本人' : '交給訂購本人';
+}
 
 async function loadProxyOrders() {
   const select = document.getElementById('proxyOrderSelect');
-  select.innerHTML = '<option value="">＋新增代填訂單</option>';
+  select.innerHTML = '<option value="">請選擇既有代填訂單</option>';
   const result = await adminPost('getMyOrder', {
     buyId: currentBuy.buyId, orderType: 'PROXY', listOnly: true
   });
   if (!result.success) throw new Error(result.message || '無法讀取代填訂單');
-  (result.orders || []).forEach(order => {
+  const orders = Array.isArray(result.orders) ? result.orders : [];
+  [false, true].forEach(bound => {
+    const matches = orders.filter(order => !!String(order.recipientUserId || '').trim() === bound);
+    if (!matches.length) return;
+    const group = document.createElement('optgroup');
+    group.label = (bound ? '已綁定訂購本人' : '未綁定訂購本人') + '（' + matches.length + ' 筆）';
+    matches.forEach(order => {
     const option = document.createElement('option');
     option.value = order.orderId;
-    option.textContent = order.orderName + '（數量 ' + formatNumber(order.quantity)
+    option.textContent = (String(order.recipientUserId || '').trim() ? '[綁] ' : '') + order.orderName + '（數量 ' + formatNumber(order.quantity)
       + (Number(order.quantity) === 0 ? '，已取消' : '') + '） · ' + order.orderId.slice(-6);
-    select.appendChild(option);
+    group.appendChild(option);
+    });
+    select.appendChild(group);
   });
 }
 
 async function selectProxyOrder() {
-  if (!orderDataReady) return;
+  if (!orderDataReady || proxyWorkflow !== 'manage') return;
   const orderId = document.getElementById('proxyOrderSelect').value;
   if (!orderId) { resetProxyRecipient(); return; }
   selectedOrderId = orderId;
+  proxyOrderLoaded = false;
+  refreshProxyWorkflowUI();
   loadedRecipientUserId = '';
+  refreshProxyBindingMarker();
   document.getElementById('proxyBindingDetails').open = false;
   document.getElementById('proxyRecipient').dataset.confirmedRecipient = '';
   document.getElementById('proxyRecipient').value = '';
@@ -1611,6 +1685,7 @@ async function loadProxyUsers() {
 }
 
 async function selectProxyRecipient() {
+  if (!orderDataReady || proxyWorkflow !== 'manage' || !selectedOrderId || !proxyOrderLoaded) return;
   const recipientSelect = document.getElementById('proxyRecipient');
   const recipient = recipientSelect.value;
   if (loadedRecipientUserId && recipient !== loadedRecipientUserId) {
@@ -1633,7 +1708,9 @@ async function selectProxyRecipient() {
 function resetProxyRecipient() {
   if (!orderDataReady) return;
   selectedOrderId = '';
+  proxyOrderLoaded = false;
   loadedRecipientUserId = '';
+  refreshProxyBindingMarker();
   document.getElementById('proxyBindingDetails').open = false;
   document.getElementById('proxyOrderSelect').value = '';
   document.getElementById('proxyRecipient').value = '';
@@ -1643,7 +1720,7 @@ function resetProxyRecipient() {
   document.getElementById('orderQty').value = 0;
   resetCategoryOrderQuantities();
   updateOrderTotal();
-  document.getElementById('proxyOrderName').focus();
+  refreshOrderTypeUI();
 }
 
 async function selectSelfOrder() {
@@ -3763,6 +3840,8 @@ function handleParticipantsBackdrop(event) {
 
 
 function refreshOrderTypeUI() {
+  refreshProxyWorkflowUI();
+  refreshProxyBindingMarker();
   const selfTab =
     document.getElementById(
       'orderModeSelfTab'
@@ -3838,6 +3917,8 @@ async function setOrderMode(type) {
 
   currentOrderType =
     nextType;
+  proxyWorkflow = '';
+  proxyOrderLoaded = false;
   selectedOrderId = '';
   loadedRecipientUserId = '';
   document.getElementById('proxyBindingDetails').open = false;
@@ -3877,25 +3958,7 @@ async function setOrderMode(type) {
   if (
     currentOrderType === 'PROXY'
   ) {
-    try {
-      setOrderLoadingState(true);
-      await loadProxyUsers();
-      await loadProxyOrders();
-      document.getElementById('proxyOrderName').value = '';
-    } catch (error) {
-      alert(error.message || '無法讀取代填訂單，請稍後重試');
-    } finally {
-      setOrderLoadingState(false);
-    }
-    const nameInput =
-      document.getElementById(
-        'proxyOrderName'
-      );
-
-    if (nameInput) {
-      nameInput.focus();
-    }
-
+    document.getElementById('proxyOrderName').value = '';
     return;
   }
 
@@ -3973,7 +4036,9 @@ async function loadSelectedOrderQuantity() {
     }
 
     selectedOrderId = result.orderId || '';
+    if (currentOrderType === 'PROXY') proxyOrderLoaded = !!result.orderId;
     loadedRecipientUserId = result.recipientUserId || '';
+    refreshProxyBindingMarker();
     document.getElementById('proxyRecipient').dataset.confirmedRecipient = loadedRecipientUserId;
     if (currentOrderType === 'SELF') {
       const select = document.getElementById('selfOrderSelect');
@@ -4039,6 +4104,7 @@ async function loadSelectedOrderQuantity() {
     updateOrderTotal();
 
   } catch (error) {
+    proxyOrderLoaded = false;
     alert(
       error.message
       ||
@@ -4060,6 +4126,8 @@ function setOrderLoadingState(isLoading) {
     document.getElementById('orderModeProxyTab'),
     document.getElementById('proxyOrderName'),
     document.getElementById('proxyOrderSelect'),
+    document.getElementById('proxyStartNew'),
+    document.getElementById('proxyStartManage'),
     document.getElementById('proxyRecipient'),
     document.getElementById('selfOrderSelect')
   ];
@@ -4107,6 +4175,7 @@ function setOrderLoadingState(isLoading) {
       '訂單讀取中，請稍候…';
   }
 
+  refreshProxyWorkflowUI();
   if (!isLoading) {
     refreshOrderTypeUI();
   }
@@ -4241,6 +4310,8 @@ async function openOrder(buyId) {
       : [];
 
   currentOrderType = 'SELF';
+  proxyWorkflow = '';
+  proxyOrderLoaded = false;
 
   selectedOrderId = '';
   loadedRecipientUserId = '';
@@ -4553,6 +4624,7 @@ function changeCategoryOrderQuantity(
 
 
 async function confirmOrder() {
+  if (!proxyFormVisible()) return;
   if (!orderDataReady) {
     return;
   }
@@ -5124,7 +5196,7 @@ function renderAdminList() {
   box.className = 'card';
   box.innerHTML = '';
 
-  window.adminGroupBuys.forEach(item => {
+  window.adminGroupBuys.forEach((item,index) => {
     const status =
       String(item.status || '')
         .trim()
@@ -5133,7 +5205,7 @@ function renderAdminList() {
     const div =
       document.createElement('div');
 
-    div.className = 'admin-row';
+    div.className = 'admin-row ' + ['admin-color-blue','admin-color-green','admin-color-yellow'][index % 3];
 
     const isOwner =
       currentUser
