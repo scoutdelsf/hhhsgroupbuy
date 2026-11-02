@@ -330,7 +330,7 @@
         <h1>系統管理專區</h1>
         <div class="subtitle">跨 LINE 群組管理群組管理員權限</div>
       </div>
-      <div class="version">v0.11.1</div>
+      <div class="version">v0.11.2</div>
     </div>
 
     <section id="identityCard" class="card">
@@ -418,6 +418,7 @@
           return;
         }
 
+        if(lineLoginNeedsRenewal()){presentLineAuthRecovery();return;}
         currentUser = await liff.getProfile();
 
         await adminPost(
@@ -431,6 +432,7 @@
 
         await loadOverview();
       } catch (error) {
+        if(isLineAuthFailure(error)){presentLineAuthRecovery();return;}
         showFatalError(
           error && error.message
             ? error.message
@@ -777,15 +779,102 @@
     }
 
 
+// Client recovery only; the Worker remains responsible for identity and permissions.
+let lineAuthRecoveryVisible = false;
+
+function isLineAuthFailure(error) {
+  return Number(error?.status) === 401 || Number(error?.code) === 401
+    || ['UNAUTHORIZED','INVALID_ID_TOKEN','LINE_AUTH_REQUIRED'].includes(error?.code);
+}
+
+function lineLoginNeedsRenewal() {
+  // This payload is only an early expiry hint, never an authorization decision.
+  try {
+    if (!liff.getIDToken()) return true;
+    const claims=typeof liff.getDecodedIDToken==='function' ? liff.getDecodedIDToken() : null;
+    return Number.isFinite(claims?.exp) && claims.exp <= Math.floor(Date.now()/1000)+5;
+  } catch(error) { if(isLineAuthFailure(error))return true;throw error; }
+}
+
+function presentLineAuthRecovery() {
+  lineAuthRecoveryVisible=true;
+  if (typeof currentGroupSessionToken!=='undefined') currentGroupSessionToken='';
+  if (typeof showGroupAccessError==='function') {
+    showGroupAccessError('LINE 登入需要更新','請重新登入 LINE，再回到目前的群組或分享團購。');
+  }
+  const userBox=document.getElementById('userBox');
+  if(userBox)userBox.textContent='LINE 登入需要更新';
+  let dialog=document.getElementById('lineAuthRecoveryDialog');
+  if(!dialog) {
+    dialog=document.createElement('dialog');dialog.id='lineAuthRecoveryDialog';
+    dialog.setAttribute('aria-labelledby','lineAuthRecoveryTitle');
+    dialog.style.cssText='max-width:420px;width:calc(100% - 40px);border:0;border-radius:16px;padding:24px;';
+    dialog.innerHTML='<h2 id="lineAuthRecoveryTitle" style="margin-top:0">請重新登入 LINE</h2>'
+      +'<p>LINE 登入驗證已失效。重新登入後，會回到目前的群組或分享團購。</p>'
+      +'<p style="font-size:14px;color:#666">已有訂單會保留；尚未儲存的內容，請在登入後重新確認。</p>'
+      +'<button type="button" id="lineAuthRenewButton" onclick="renewLineLogin()">重新登入 LINE</button>'
+      +'<p id="lineAuthRenewError" role="alert" style="color:#b42318"></p>';
+    // Authentication is required before further actions; Escape cannot hide recovery.
+    dialog.addEventListener('cancel',event=>event.preventDefault());
+    document.body.appendChild(dialog);
+  }
+  if(!dialog.open)dialog.showModal();
+}
+
+function requireLineIdToken() {
+  if(lineLoginNeedsRenewal()) {
+    const error=Object.assign(new Error('LINE 登入驗證已失效，請重新登入'),{status:401,code:'LINE_AUTH_REQUIRED'});
+    presentLineAuthRecovery();throw error;
+  }
+  return liff.getIDToken();
+}
+
+function lineResumeUrl(inClient) {
+  const current=new URL(window.location.href);
+  const target=inClient ? new URL('https://liff.line.me/'+LIFF_ID+(current.pathname.endsWith('/system-admin.html')?'/system-admin.html':''))
+    : new URL(current.pathname,current.origin);
+  let state=null;
+  try {if(current.searchParams.get('liff.state'))state=new URL(current.searchParams.get('liff.state'),current.origin);}catch{}
+  // Carry application context only. OAuth codes, tokens, SDK state and fragments never travel here.
+  for(const key of ['g','share']) {
+    const value=current.searchParams.get(key)||state?.searchParams.get(key)
+      ||(key==='g'&&typeof currentGroupKey!=='undefined'?currentGroupKey:'')
+      ||(key==='share'&&typeof currentGuestToken!=='undefined'?currentGuestToken:'');
+    if(value)target.searchParams.set(key,value);
+  }
+  return target.href;
+}
+
+function renewLineLogin() {
+  const button=document.getElementById('lineAuthRenewButton'),errorBox=document.getElementById('lineAuthRenewError');
+  if(button?.disabled)return;
+  if(button){button.disabled=true;button.textContent='正在更新登入…';}
+  if(errorBox)errorBox.textContent='';
+  try {
+    if(typeof liff.isInClient==='function'&&liff.isInClient()) {
+      // LIFF browsers log in through liff.init; liff.login is unsupported there.
+      window.location.replace(lineResumeUrl(true));
+    } else {
+      if(liff.isLoggedIn())liff.logout();
+      liff.login({redirectUri:lineResumeUrl(false)});
+    }
+  } catch(error) {
+    if(button){button.disabled=false;button.textContent='重新登入 LINE';}
+    if(errorBox)errorBox.textContent='無法更新登入，請關閉此頁後從 LINE 群組或分享連結重新開啟。';
+  }
+}
+
 async function adminPost(action,payload) {
-  const token=liff.getIDToken();if(!token)throw new Error('請先登入 LINE');
+  const token=requireLineIdToken();
   const convert=row=>Object.fromEntries(Object.entries(row).map(([k,v])=>[k.replace(/_([a-z])/g,(_,c)=>c.toUpperCase()),k==='enabled'?Number(v)===1:v]));
   async function call(path,body) {
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);
     try {
       const response=await fetch(API_URL+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
         ...(body?{body:JSON.stringify(body)}:{}),signal:controller.signal,credentials:'omit'});
-      const result=await response.json();if(!response.ok||!result.success)throw new Error(result.message||'讀取或儲存失敗');return result;
+      const result=await response.json();
+      if(!response.ok||!result.success){const error=Object.assign(new Error(result.message||'讀取或儲存失敗'),{status:response.status});if(isLineAuthFailure(error))presentLineAuthRecovery();throw error;}
+      return result;
     } finally {clearTimeout(timer);}
   }
   if(action==='syncUser')return call('/api/auth/sync-user',payload||{});
