@@ -298,13 +298,6 @@
 
     .hidden { display: none !important; }
 
-    #gasPostFrame {
-      display: none;
-      width: 0;
-      height: 0;
-      border: 0;
-    }
-
     @media (min-width: 640px) {
       body { padding: 24px; }
 
@@ -337,7 +330,7 @@
         <h1>系統管理專區</h1>
         <div class="subtitle">跨 LINE 群組管理群組管理員權限</div>
       </div>
-      <div class="version">v0.1.0</div>
+      <div class="version">v0.11.1</div>
     </div>
 
     <section id="identityCard" class="card">
@@ -395,13 +388,12 @@
     </div>
   </main>
 
-  <iframe id="gasPostFrame" name="gasPostFrame"></iframe>
+  
 
   <script>
     const LIFF_ID = '2011825033-7byocb0b';
 
-    const API_URL =
-      'https://script.google.com/macros/s/AKfycbyL7dyXlrGU9PNq6jqqcnXrCXKK3Ouhct68vCo2W9qFYzyH2R2SL9y5zCWuiKbDcva1/exec';
+    const API_URL = 'https://hhhs-groupbuy-api.scout-delsf.workers.dev';
 
     const pendingRequests = {};
     let currentUser = null;
@@ -785,80 +777,25 @@
     }
 
 
-    function adminPost(action, payload) {
-      return new Promise(function(resolve, reject) {
-        const idToken = liff.getIDToken();
-
-        if (!idToken) {
-          reject(new Error('無法取得 LINE ID Token'));
-          return;
-        }
-
-        const requestId =
-          'SYS_' + Date.now() + '_'
-          + Math.random().toString(36).slice(2);
-
-        const timeout = setTimeout(function() {
-          delete pendingRequests[requestId];
-          reject(new Error('系統管理操作逾時，請重新整理後再試'));
-        }, 45000);
-
-        pendingRequests[requestId] = {
-          resolve: resolve,
-          reject: reject,
-          timeout: timeout
-        };
-
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = API_URL;
-        form.target = 'gasPostFrame';
-        form.style.display = 'none';
-
-        const fields = {
-          action: action,
-          idToken: idToken,
-          requestId: requestId,
-          parentOrigin: location.origin,
-          payload: JSON.stringify(payload || {})
-        };
-
-        Object.keys(fields).forEach(function(name) {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = name;
-          input.value = fields[name];
-          form.appendChild(input);
-        });
-
-        document.body.appendChild(form);
-        form.submit();
-
-        setTimeout(function() {
-          form.remove();
-        }, 1000);
-      });
-    }
-
-
-    window.addEventListener('message', function(event) {
-      if (
-        !event.data
-        || event.data.type !== 'GAS_ADMIN_RESPONSE'
-      ) {
-        return;
-      }
-
-      const requestId = event.data.requestId;
-      const pending = pendingRequests[requestId];
-
-      if (!pending) return;
-
-      clearTimeout(pending.timeout);
-      delete pendingRequests[requestId];
-      pending.resolve(event.data.result);
-    });
-
+async function adminPost(action,payload) {
+  const token=liff.getIDToken();if(!token)throw new Error('請先登入 LINE');
+  const convert=row=>Object.fromEntries(Object.entries(row).map(([k,v])=>[k.replace(/_([a-z])/g,(_,c)=>c.toUpperCase()),k==='enabled'?Number(v)===1:v]));
+  async function call(path,body) {
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);
+    try {
+      const response=await fetch(API_URL+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+        ...(body?{body:JSON.stringify(body)}:{}),signal:controller.signal,credentials:'omit'});
+      const result=await response.json();if(!response.ok||!result.success)throw new Error(result.message||'讀取或儲存失敗');return result;
+    } finally {clearTimeout(timer);}
+  }
+  if(action==='syncUser')return call('/api/auth/sync-user',payload||{});
+  if(action==='systemAdminSaveGroupAdmin')return call('/api/system/group-admins',payload);
+  if(action==='systemAdminGetAccessOverview') {
+    const [groups,users,admins]=await Promise.all([call('/api/system/groups'),call('/api/system/users'),call('/api/system/group-admins')]);
+    return {success:true,groups:groups.data.map(convert),users:users.data.map(convert),groupAdmins:admins.data.map(convert)};
+  }
+  throw new Error('不支援此管理操作');
+}
 
     function shortenId(value) {
       const text = String(value || '');
