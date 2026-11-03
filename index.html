@@ -1206,7 +1206,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.11.4</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.11.5</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1940,6 +1940,11 @@ async function initLiff() {
 
 
 function configureSharedBuyView() {
+  // Shares bypass the group chooser, so reveal their home container explicitly.
+  const home = document.getElementById('homePanel');
+  if (home) { home.hidden = false; home.style.display = 'block'; }
+  const picker = document.getElementById('groupPicker');
+  if (picker) { picker.hidden = true; picker.style.display = 'none'; }
   setManagementEntryState('guest');
   ['homeTabs','closedGroupBuySection','suspendedGroupBuySection','adminEntry'].forEach(id => {
     const element = document.getElementById(id);
