@@ -1206,7 +1206,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.11.3</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.11.4</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1554,6 +1554,26 @@
   <button id="reopenBuyCancel" class="outline" type="button" onclick="closeReopenBuy()">取消</button>
 </dialog>
 
+
+<dialog id="proxyPersonnelDialog" aria-labelledby="proxyPersonnelTitle" oncancel="event.preventDefault();closeProxyPersonnel()" style="width:min(620px,calc(100% - 32px));border:0;border-radius:16px;padding:22px;">
+  <h2 id="proxyPersonnelTitle" style="margin-top:0;">管理代填訂單</h2>
+  <div id="proxyPersonnelBuyName" style="font-weight:700;"></div>
+  <p class="muted">此處只管理訂購本人與代填者，商品、數量、金額及收款都不會變更。</p>
+  <div id="proxyPersonnelStatus" role="status" aria-live="polite" class="muted"></div>
+  <label for="proxyPersonnelOrder">選擇既有代填訂單</label>
+  <select id="proxyPersonnelOrder" onchange="renderProxyPersonnel()"></select>
+  <div id="proxyPersonnelDetail" style="margin:14px 0;"></div>
+  <div id="proxyPersonnelActions" hidden style="margin:12px 0;">
+    <button type="button" id="proxyPersonnelBind" class="outline" onclick="beginProxyPersonnelAction('BIND')">交給訂購本人</button>
+    <button type="button" id="proxyPersonnelTransfer" class="outline" onclick="beginProxyPersonnelAction('TRANSFER')">轉交代填者</button>
+  </div>
+  <div id="proxyPersonnelTargetWrap" hidden>
+    <label id="proxyPersonnelTargetLabel" for="proxyPersonnelTarget"></label>
+    <select id="proxyPersonnelTarget"></select>
+    <button type="button" id="proxyPersonnelSubmit" onclick="submitProxyPersonnel()">確認</button>
+  </div>
+  <div style="margin-top:18px;"><button type="button" class="outline" id="proxyPersonnelClose" onclick="closeProxyPersonnel()">關閉</button></div>
+</dialog>
 
 <script>
 const LIFF_ID = '2011825033-7byocb0b';
@@ -2756,7 +2776,7 @@ function renderCarousel(items, carouselId, dotsId, loadingId, openMode, forcedSt
         }`
           : forcedStatus === 'SUSPENDED' ? ''
             : `<div class="muted" style="margin-top:10px;">已結單，不能新增或修改訂購內容。</div>
-               <button class="outline" onclick="openParticipants('${escapeJs(item.buyId)}')">有誰跟團／訂購摘要</button>`}
+               <div class="card-action-row"><button class="outline" onclick="openParticipants('${escapeJs(item.buyId)}')">有誰跟團／訂購摘要</button>${!guestMode ? `<button class="outline" onclick="openProxyPersonnel('${escapeJs(item.buyId)}')">管理代填訂單</button>` : ''}</div>`}
       </div>
     `;
 
@@ -5239,6 +5259,7 @@ function renderAdminList() {
       }
 
       <div class="admin-actions">
+        ${status === 'CLOSED' ? `<button class="outline" onclick="openProxyPersonnel('${escapeJs(item.buyId)}')">管理代填訂單</button>` : ''}
         <button class="outline" onclick="openParticipants('${escapeJs(item.buyId)}')">有誰跟團／收款</button>
         ${
           isOwner
@@ -6864,6 +6885,83 @@ function renewLineLogin() {
   }
 }
 
+let proxyPersonnelState=null;
+function closeProxyPersonnel(){if(proxyPersonnelState?.saving)return;proxyPersonnelState=null;document.getElementById('proxyPersonnelDialog').close();}
+function personnelCurrent(state){return proxyPersonnelState===state&&state.generation===groupContextGeneration;}
+async function openProxyPersonnel(buyId){
+  if(guestMode)return;
+  const buy=[...(window.currentGroupBuys||[]),...(window.currentClosedGroupBuys||[]),...(window.adminGroupBuys||[])].find(b=>String(b.buyId)===String(buyId));
+  if(!buy||!['OPEN','CLOSED'].includes(buy.status)){alert('請重新讀取這一團');return;}
+  const state={buy,generation:groupContextGeneration,orders:[],users:null,saving:false,loading:true,action:''};proxyPersonnelState=state;
+  document.getElementById('proxyPersonnelBuyName').textContent=buy.name||'團購';
+  document.getElementById('proxyPersonnelStatus').textContent='正在讀取可管理的代填訂單…';
+  document.getElementById('proxyPersonnelOrder').innerHTML='<option value="">讀取中…</option>';
+  document.getElementById('proxyPersonnelOrder').disabled=true;
+  document.getElementById('proxyPersonnelDetail').innerHTML='';document.getElementById('proxyPersonnelActions').hidden=true;document.getElementById('proxyPersonnelTargetWrap').hidden=true;
+  document.getElementById('proxyPersonnelClose').disabled=false;
+  const dialog=document.getElementById('proxyPersonnelDialog');if(!dialog.open)dialog.showModal();
+  try{await refreshProxyPersonnel(state);}catch(error){if(personnelCurrent(state)&&!isLineAuthFailure(error))document.getElementById('proxyPersonnelStatus').textContent=error.message||'讀取失敗';}
+}
+async function refreshProxyPersonnel(state,message=''){
+  const result=await adminPost('proxyPersonnelOrders',{buyId:state.buy.buyId});if(!personnelCurrent(state))return;
+  state.orders=Array.isArray(result.orders)?result.orders:[];state.loading=false;state.action='';
+  const select=document.getElementById('proxyPersonnelOrder'),previous=select.value;
+  select.innerHTML='<option value="">請選擇代填訂單</option>';
+  state.orders.forEach(order=>{const option=document.createElement('option');option.value=order.orderId;option.textContent=(order.recipientUserId?'[綁] ':'')+order.orderName+'（'+formatNumber(order.quantity)+'）｜由 '+order.proxyName+' 代填';select.appendChild(option);});
+  select.disabled=!state.orders.length;select.value=state.orders.some(o=>o.orderId===previous)?previous:'';
+  document.getElementById('proxyPersonnelStatus').textContent=message||(state.orders.length?'請先選擇要管理的訂單。':'目前沒有可由你管理的代填訂單。');
+  renderProxyPersonnel();
+}
+function renderProxyPersonnel(){
+  const state=proxyPersonnelState;if(!state||state.saving)return;
+  state.action='';document.getElementById('proxyPersonnelTargetWrap').hidden=true;
+  const order=state.orders.find(o=>o.orderId===document.getElementById('proxyPersonnelOrder').value);
+  document.getElementById('proxyPersonnelActions').hidden=!order;
+  if(!order){document.getElementById('proxyPersonnelDetail').innerHTML='';return;}
+  const items=order.items||[],unit=isCategoryGroupBuy(state.buy)?'件':String(state.buy.unit||'');
+  document.getElementById('proxyPersonnelDetail').innerHTML='<strong>'+escapeHtml(order.orderName)+'</strong> '
+    +'<span class="participant-source">（由 <span class="participant-line-name">'+escapeHtml(order.proxyName)+'</span> 代填）</span>'
+    +(order.recipientUserId?'<div class="muted" style="margin-top:6px;">[綁] 已交給訂購本人；代填註記保留。</div>':'')
+    +items.map(i=>'<div class="muted" style="margin-top:7px;">'+escapeHtml([i.mainCategory,i.subCategory,i.optionName].filter(Boolean).join('／'))+'：'+formatNumber(i.quantity)+' '+escapeHtml(i.unit||'')+'／$'+formatNumber(i.lineTotal)+'</div>').join('')
+    +'<div style="margin-top:10px;">總數量：'+formatNumber(order.quantity)+' '+escapeHtml(unit)+'　總金額：$'+formatNumber(order.totalAmount)+'</div>'
+    +(!order.canBind&&!order.recipientUserId?'<div class="muted" style="margin-top:7px;">交給訂購本人須由目前代填者操作。</div>':'');
+  document.getElementById('proxyPersonnelBind').hidden=!order.canBind;
+  document.getElementById('proxyPersonnelTransfer').hidden=!order.canTransfer;
+}
+async function beginProxyPersonnelAction(action){
+  const state=proxyPersonnelState;if(!state||state.saving||state.loading)return;
+  const order=state.orders.find(o=>o.orderId===document.getElementById('proxyPersonnelOrder').value);
+  if(!order||(action==='BIND'?!order.canBind:!order.canTransfer))return;
+  const selectedOrder=order.orderId;state.action=action;
+  const wrap=document.getElementById('proxyPersonnelTargetWrap'),select=document.getElementById('proxyPersonnelTarget');wrap.hidden=false;
+  document.getElementById('proxyPersonnelTargetLabel').textContent=action==='BIND'?'選擇這筆訂單的訂購本人':'選擇接手代填的人';
+  document.getElementById('proxyPersonnelSubmit').textContent=action==='BIND'?'確認綁定本人':'確認轉交代填';
+  select.disabled=true;document.getElementById('proxyPersonnelSubmit').disabled=true;select.innerHTML='<option value="">正在讀取…</option>';
+  try{
+    if(!state.users){const r=await adminPost('proxyOrderUsers',{buyId:state.buy.buyId,includeSelf:true});if(!personnelCurrent(state))return;state.users=r.users||[];}
+    if(!personnelCurrent(state)||state.action!==action||document.getElementById('proxyPersonnelOrder').value!==selectedOrder)return;
+    select.innerHTML='<option value="">請選擇使用者</option>';
+    state.users.filter(u=>action==='BIND'?u.userId!==order.proxyUserId:u.userId!==order.proxyUserId&&u.userId!==order.recipientUserId).forEach(user=>{const option=document.createElement('option');option.value=user.userId;option.textContent=user.lineName;select.appendChild(option);});
+    select.disabled=false;document.getElementById('proxyPersonnelSubmit').disabled=false;
+  }catch(error){if(personnelCurrent(state)&&!isLineAuthFailure(error))document.getElementById('proxyPersonnelStatus').textContent=error.message||'讀取失敗';}
+}
+async function submitProxyPersonnel(){
+  const state=proxyPersonnelState;if(!state||state.saving)return;
+  const order=state.orders.find(o=>o.orderId===document.getElementById('proxyPersonnelOrder').value),target=state.users?.find(u=>u.userId===document.getElementById('proxyPersonnelTarget').value);
+  if(!order||!target||!['BIND','TRANSFER'].includes(state.action)){alert('請選擇訂單及使用者');return;}
+  const binding=state.action==='BIND';
+  if(!confirm(binding?'確認 '+target.lineName+' 是這筆訂單的訂購本人？\n姓名會改為他的 LINE 名稱，授予本人查看與付款提醒權限，並保留代填註記。':'確認將 '+order.orderName+' 轉交給 '+target.lineName+' 接手代填？\n訂購姓名、商品、數量與收款保持不變。'))return;
+  state.saving=true;['proxyPersonnelOrder','proxyPersonnelTarget','proxyPersonnelSubmit','proxyPersonnelClose','proxyPersonnelBind','proxyPersonnelTransfer'].forEach(id=>document.getElementById(id).disabled=true);
+  try{
+    const payload={buyId:state.buy.buyId,orderId:order.orderId,expectedVersion:order.version};
+    if(binding){payload.recipientUserId=target.userId;payload.expectedRecipientUserId=order.recipientUserId;}
+    else{payload.proxyUserId=target.userId;payload.expectedProxyUserId=order.proxyUserId;}
+    const result=await adminPost(binding?'bindOrderRecipient':'transferOrderProxy',payload);
+    if(!personnelCurrent(state))return;state.saving=false;await refreshProxyPersonnel(state,result.message||'人員設定已更新');
+  }catch(error){if(personnelCurrent(state)&&!isLineAuthFailure(error))document.getElementById('proxyPersonnelStatus').textContent=(error.message||'操作失敗')+'；請關閉後重新讀取訂單。';}
+  finally{state.saving=false;if(personnelCurrent(state))['proxyPersonnelOrder','proxyPersonnelTarget','proxyPersonnelSubmit','proxyPersonnelClose','proxyPersonnelBind','proxyPersonnelTransfer'].forEach(id=>document.getElementById(id).disabled=false);}
+}
+
 let groupDirectory=[];
 let groupListBusy=false;
 let groupSelecting=false;
@@ -6879,6 +6977,8 @@ function resetGroupContext() {
   buyVersions.clear();orderVersions.clear();paymentVersions.clear();editingBuyVersions.clear();orderBuyVersion=null;
   isAdmin=false;canManageCurrentGroup=false;canUseGroupDataTools=false;currentManagementRole='GROUP_BUY_ADMIN';
   proxyTransferState=null;reopenBuyState=null;
+  proxyPersonnelState=null;
+  const personnel=document.getElementById('proxyPersonnelDialog');if(personnel?.open)personnel.close();
   for(const id of ['proxyTransferDialog','reopenBuyDialog']){const dialog=document.getElementById(id);if(dialog?.open)dialog.close();}
   for(const id of ['homePanel','adminPanel','adminFormPanel','orderPanel','participantsPanel']) {
     const node=document.getElementById(id);if(node){node.style.display='none';node.classList.remove('show');}
@@ -6985,7 +7085,7 @@ async function workerPost(action, payload) {
     body.expectedBuyVersion=orderBuyVersion ?? buyVersions.get(body.buyId);
     if (body.orderId) body.expectedVersion=orderVersions.get(body.orderId);
   }
-  if (['transferOrderProxy','updateOrderPayment'].includes(action)) body.expectedVersion=paymentVersions.get(body.orderId);
+  if (action==='updateOrderPayment'||(action==='transferOrderProxy'&&body.expectedVersion===undefined)) body.expectedVersion=paymentVersions.get(body.orderId);
   if (action==='adminUpdateGroupBuy') body.expectedVersion=editingBuyVersions.get(body.buyId);
   if (['adminOpenGroupBuy','adminCloseGroupBuy','adminForceCloseGroupBuy','adminApproveGroupBuy','adminSuspendGroupBuy','adminReopenGroupBuy'].includes(action)) body.expectedVersion=buyVersions.get(body.buyId);
   const controller=new AbortController();
