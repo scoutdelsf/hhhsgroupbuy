@@ -1206,7 +1206,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.11.2</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.11.3</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1232,7 +1232,14 @@
     </div>
   </div>
 
-  <div id="homePanel">
+  <section id="groupPicker" class="card" hidden style="margin:16px 0;">
+    <h2 style="margin-top:0;font-size:20px;">選擇群組</h2>
+    <div id="groupPickerStatus" class="muted" role="status" aria-live="polite"></div>
+    <div id="groupPickerList" style="display:grid;gap:10px;margin:16px 0;"></div>
+    <button id="groupPickerRefresh" type="button" class="outline" onclick="loadMyGroups({refresh:true,autoEnter:false})">更新群組清單</button>
+  </section>
+
+  <div id="homePanel" style="display:none;">
 
     <div class="section">
       <div id="homeTabs" class="home-tabs">
@@ -1765,7 +1772,7 @@ function showLineLoginPrompt() {
   document.getElementById('userBox').innerHTML = `
     <div>目前尚未登入 LINE</div>
     <button id="lineLoginButton" type="button" style="margin-top:10px;" onclick="loginWithLine()">使用 LINE 登入</button>
-    <div class="muted" style="margin-top:8px;">登入後會回到此頁；群組團購仍須從該群組的專屬入口進入。</div>
+    <div class="muted" style="margin-top:8px;">登入後會列出你可以進入的群組。</div>
     <div id="lineLoginError" role="alert" style="margin-top:8px;color:#b42318;"></div>
   `;
 }
@@ -1807,7 +1814,7 @@ function setManagementEntryState(state) {
   if (button) button.disabled = !ready;
   if (hint) {
     hint.textContent = ready ? '' : ({checking:'驗證完成後即可操作',login:'登入並從群組入口進入後可使用',
-      group:'正在確認群組入口…',error:'尚未完成群組驗證',guest:''}[state] || '驗證完成後即可操作');
+      group:'正在確認群組資格…',choose:'選擇群組後即可操作',error:'尚未完成群組驗證',guest:''}[state] || '驗證完成後即可操作');
     hint.style.display = ready || state === 'guest' ? 'none' : 'block';
   }
 }
@@ -1898,61 +1905,8 @@ async function initLiff() {
       return;
     }
 
-    currentGroupKey =
-      String(
-        urlParams.get('g') || ''
-      ).trim();
-
-    if (!currentGroupKey) {
-      showGroupAccessError(
-        '請從 LINE 群組的團購入口開啟',
-        '回到 LINE 群組輸入「團購」，再點 Bot 回傳的專屬入口。'
-      );
-      return;
-    }
-
-    setManagementEntryState('group');
-    const groupResult =
-      await adminPost(
-        'resolveGroupContext',
-        {
-          groupKey:
-            currentGroupKey
-        }
-      );
-
-    if (
-      !groupResult
-      ||
-      !groupResult.success
-    ) {
-      showGroupAccessError(
-        '無法進入此群組團購',
-        groupResult
-        && groupResult.message
-          ? groupResult.message
-          : '請回 LINE 群組重新取得入口。'
-      );
-      return;
-    }
-
-    currentGroupSessionToken =
-      groupResult.sessionToken;
-
-    currentGroupName =
-      groupResult.groupName || '';
-
-    userBox.innerHTML += `
-      <div style="margin-top:8px;" class="muted">
-        群組：<strong>${escapeHtml(currentGroupName || 'LINE 群組')}</strong>
-      </div>
-
-    `;
-
-    checkAdminStatus();
-    loadOpenGroupBuys();
-    loadClosedGroupBuys();
-    loadSuspendedGroupBuys();
+    currentGroupKey = ''; // Legacy ?g is intentionally ignored.
+    await loadMyGroups({autoEnter:true});
 
   } catch (error) {
     if (isLineAuthFailure(error)) { presentLineAuthRecovery(); return; }
@@ -6910,6 +6864,93 @@ function renewLineLogin() {
   }
 }
 
+let groupDirectory=[];
+let groupListBusy=false;
+let groupSelecting=false;
+let groupContextGeneration=0;
+
+function resetGroupContext() {
+  groupContextGeneration++;
+  currentGroupSessionToken='';currentGroupName='';currentGroupKey='';currentBuy=null;
+  orderDataReady=false;selectedOrderId='';proxyUsersLoaded=false;proxyUsers=[];
+  participantsRequestSequence++;participantsViewState=null;
+  window.currentGroupBuys=[];window.currentClosedGroupBuys=[];window.currentSuspendedGroupBuys=[];
+  window.adminGroupBuys=[];window.adminAllGroupBuys=[];
+  buyVersions.clear();orderVersions.clear();paymentVersions.clear();editingBuyVersions.clear();orderBuyVersion=null;
+  isAdmin=false;canManageCurrentGroup=false;canUseGroupDataTools=false;currentManagementRole='GROUP_BUY_ADMIN';
+  proxyTransferState=null;reopenBuyState=null;
+  for(const id of ['proxyTransferDialog','reopenBuyDialog']){const dialog=document.getElementById(id);if(dialog?.open)dialog.close();}
+  for(const id of ['homePanel','adminPanel','adminFormPanel','orderPanel','participantsPanel']) {
+    const node=document.getElementById(id);if(node){node.style.display='none';node.classList.remove('show');}
+  }
+  document.body.classList.remove('modal-open');
+  for(const id of ['openCarousel','closedCarousel','suspendedCarousel','adminList']) {
+    const node=document.getElementById(id);if(node)node.innerHTML='';
+  }
+  for(const id of ['openLoading','closedLoading','suspendedLoading']) {
+    const node=document.getElementById(id);if(node){node.style.display='block';node.textContent='正在載入團購資料…';}
+  }
+  document.getElementById('currentGroupSummary')?.remove();
+  const access=document.getElementById('groupAccessMessage');if(access)access.style.display='none';
+  const stats=document.getElementById('myHostStats');if(stats)stats.innerHTML='<div>我的主揪開團中：<strong>--</strong></div><div>我的主揪已結案：<strong>--</strong></div>';
+  setManagementEntryState('choose');
+}
+
+function renderGroupDirectory(message) {
+  const list=document.getElementById('groupPickerList');list.innerHTML='';
+  document.getElementById('groupPickerStatus').textContent=message||(!groupDirectory.length
+    ?'目前沒有已確認可進入的群組。加入有此機器人的群組後，可按「更新群組清單」。'
+    :'請選擇要查看的群組；若剛加入其他群組，可更新清單。');
+  for(const group of groupDirectory) {
+    const button=document.createElement('button');button.type='button';button.className='outline';
+    button.textContent=group.groupName||'LINE 群組';button.disabled=groupSelecting;
+    button.addEventListener('click',()=>chooseGroup(group.groupId));list.appendChild(button);
+  }
+  document.getElementById('groupPickerRefresh').disabled=groupListBusy||groupSelecting;
+}
+
+async function loadMyGroups({refresh=false,autoEnter=false}={}) {
+  if(guestMode||groupListBusy||groupSelecting)return;
+  resetGroupContext();groupListBusy=true;groupDirectory=[];
+  document.getElementById('groupPicker').hidden=false;renderGroupDirectory('正在確認可進入的群組…');
+  try {
+    const result=await adminPost('listMyGroups',{refresh});
+    groupDirectory=Array.isArray(result.groups)?result.groups:[];
+    renderGroupDirectory(result.verificationIncomplete?'部分群組暫時無法確認，稍後可更新清單。':'');
+    groupListBusy=false;
+    if(autoEnter&&groupDirectory.length===1&&!result.verificationIncomplete)await chooseGroup(groupDirectory[0].groupId);
+  } catch(error) {
+    if(!isLineAuthFailure(error))renderGroupDirectory(error.message||'無法讀取群組，請稍後更新清單。');
+  } finally {groupListBusy=false;document.getElementById('groupPickerRefresh').disabled=groupSelecting;}
+}
+
+async function chooseGroup(groupId) {
+  if(guestMode||groupSelecting||groupListBusy||!groupDirectory.some(g=>g.groupId===groupId))return;
+  groupSelecting=true;setManagementEntryState('group');renderGroupDirectory('正在確認群組資格…');
+  try {
+    const result=await adminPost('selectGroup',{groupId});
+    currentGroupSessionToken=result.sessionToken;currentGroupName=result.groupName||'LINE 群組';
+    const summary=document.createElement('div');summary.id='currentGroupSummary';summary.className='muted';summary.style.marginTop='8px';
+    const label=document.createElement('strong');label.textContent='群組：'+currentGroupName;summary.appendChild(label);
+    const change=document.createElement('button');change.type='button';change.className='outline';change.style.cssText='margin-left:8px;font-size:13px;padding:5px 10px;';change.textContent='切換群組';change.addEventListener('click',openGroupPicker);summary.appendChild(change);
+    document.getElementById('userBox').appendChild(summary);
+    document.getElementById('groupPicker').hidden=true;document.getElementById('homePanel').style.display='block';
+    checkAdminStatus();switchHomeTab('open');loadOpenGroupBuys();loadClosedGroupBuys();loadSuspendedGroupBuys();
+  } catch(error) {
+    currentGroupSessionToken='';setManagementEntryState('choose');
+    if(!isLineAuthFailure(error))renderGroupDirectory(error.message||'無法進入此群組，請更新群組清單。');
+  } finally {groupSelecting=false;document.getElementById('groupPickerRefresh').disabled=false;
+    document.querySelectorAll('#groupPickerList button').forEach(button=>button.disabled=false);}
+}
+
+function openGroupPicker() {
+  if(guestMode||groupSelecting||groupListBusy)return;
+  if(participantsViewState?.paymentBusy){alert('目前操作尚未完成，請稍後切換群組。');return;}
+  const form=document.getElementById('adminFormPanel');
+  if((currentBuy||(form&&!['','none'].includes(form.style.display)))&&!confirm('切換群組會關閉尚未儲存的內容，是否繼續？'))return;
+  loadMyGroups({autoEnter:false});
+}
+
 // All reads and writes use authenticated fetch; no JSONP or hidden form submissions.
 const buyVersions = new Map();
 const orderVersions = new Map();
@@ -6933,6 +6974,7 @@ function rememberVersions(result, action) {
 
 async function workerPost(action, payload) {
   const idToken=requireLineIdToken();
+  const requestGeneration=groupContextGeneration;
   const body={...(payload || {})};
   if (['adminCreateGroupBuy','adminUpdateGroupBuy'].includes(action)) {
     ['startAt','endAt'].forEach(key=>{if(body[key])body[key]=new Date(body[key]).toISOString();});
@@ -6954,6 +6996,7 @@ async function workerPost(action, payload) {
       body:JSON.stringify({action,payload:body}),signal:controller.signal,credentials:'omit'
     });
     const result=await response.json();
+    if(requestGeneration!==groupContextGeneration)throw Object.assign(new Error('群組已切換，請重新讀取目前群組的資料'),{code:'GROUP_CONTEXT_CHANGED'});
     if (!response.ok || result.success!==true) {
       const error=Object.assign(new Error(result.message || '讀取或儲存失敗'),{status:response.status});
       if(isLineAuthFailure(error))presentLineAuthRecovery();
@@ -6987,9 +7030,11 @@ function adminPost(action,payload) { return workerPost(action,payload); }
 // Preserve existing view callbacks while transporting their data through fetch.
 function jsonp(action,callbackName,extraParams,onError) {
   const callback=window[callbackName];
+  const requestGeneration=groupContextGeneration;
   workerPost(action,extraParams).then(result=>{
+    if(requestGeneration!==groupContextGeneration)return;
     if (typeof callback==='function') return callback(result);
-  }).catch(error=>{if(typeof onError==='function')onError(error.message);});
+  }).catch(error=>{if(requestGeneration===groupContextGeneration&&typeof onError==='function')onError(error.message);});
 }
 
 
