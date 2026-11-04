@@ -1200,6 +1200,7 @@
     }
 
 #workspaceRoles { min-width:0; }
+    #workspaceRoles button[aria-pressed="true"], #adminViewTabs .admin-view-tab.active { background:#246b3f; color:#fff; border-color:#246b3f; opacity:1; }
     #workspaceRoles button { margin:0; white-space:normal; overflow:visible; line-height:1.4; }
     .login-chip { flex-wrap:wrap; gap:4px; font-size:12px; padding:4px 6px; }
     #groupSwitchButton { width:auto; margin:0 !important; white-space:nowrap; font-size:11px !important; padding:4px 6px !important; line-height:1.2; }
@@ -1212,7 +1213,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.12.3</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.12.4</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -7416,6 +7417,12 @@ function renderWorkspaceRoles(){
   if(workspaceAuthority==='SYSTEM_ADMIN')roles.push(['SYSTEM','系統管理者']);
   box.innerHTML=roles.map(([id,label])=>'<button type="button" class="outline" onclick="switchWorkspaceRole(\''+id+'\')"'+(workspaceRole===id?' disabled aria-pressed="true"':' aria-pressed="false"')+'>'+label+'</button>').join('');
 }
+function renderManagementTabs(selected){
+  const tabs=document.getElementById('adminViewTabs');if(!tabs)return;
+  const choices=workspaceRole==='SYSTEM'?[['group','群組管理']]:workspaceRole==='HOST'?[['mine','我的團購']]:[['pending','待審核'],['all','全部團購'],...(workspaceAuthority==='GROUP_HELPER'?[]:[['settings','群組設定']])];
+  tabs.classList.add('show');tabs.setAttribute('role','tablist');
+  tabs.innerHTML=choices.map(([view,label])=>'<button type="button" role="tab" class="admin-view-tab'+(selected===view?' active':'')+'" data-management-view="'+view+'" aria-selected="'+(selected===view)+'" onclick="setAdminManagementView(\''+view+'\')"'+(selected===view?' disabled':'')+'>'+label+'</button>').join('');
+}
 function switchWorkspaceRole(role){
   if(guestMode||!currentGroupSessionToken)return;
   if(!['MEMBER','HOST','MANAGER','SYSTEM'].includes(role))return;
@@ -7431,7 +7438,7 @@ function switchWorkspaceRole(role){
   document.getElementById('adminPanel').style.display=role==='MEMBER'?'none':'block';
   document.getElementById('homeToolbar').style.display='grid';
   const badge=document.getElementById('adminRoleBadge');if(badge)badge.textContent=role==='SYSTEM'?'系統管理者':role==='MANAGER'?(workspaceAuthority==='GROUP_HELPER'?'群組小幫手':'群組管理者'):'團購主';
-  const tabs=document.getElementById('adminViewTabs');if(tabs){tabs.classList.add('show');tabs.innerHTML=role==='SYSTEM'?'<button class="admin-view-tab" onclick="setAdminManagementView(\'group\')">群組管理</button>':role==='HOST'?'<button class="admin-view-tab active" disabled>我的團購</button>':'<button class="admin-view-tab" onclick="setAdminManagementView(\'pending\')">待審核</button><button class="admin-view-tab" onclick="setAdminManagementView(\'all\')">全部團購</button>'+(workspaceAuthority!=='GROUP_HELPER'?'<button class="admin-view-tab" onclick="setAdminManagementView(\'settings\')">群組設定</button>':'');}
+  const tabs=document.getElementById('adminViewTabs');renderManagementTabs(null);
   const actions=document.querySelector('#adminPanel .admin-panel-actions');if(actions)actions.style.display=role==='HOST'?'flex':'none';
   if(tabs)tabs.style.gridTemplateColumns=role==='MANAGER'?(workspaceAuthority==='GROUP_HELPER'?'repeat(2,minmax(0,1fr))':'repeat(3,minmax(0,1fr))'):'1fr';
   const title=document.getElementById('adminPanelTitle');if(title)title.textContent=role==='SYSTEM'?'系統管理':role==='MANAGER'?'群組管理者專區':'我的團購';
@@ -7479,6 +7486,7 @@ async function showManagementView(view){
   if(manager&&!['pending','all','settings'].includes(view))return;
   if(view==='settings'&&workspaceAuthority==='GROUP_HELPER')return;
   currentAdminView=view;const sequence=++managementSequence;
+  renderManagementTabs(view);
   const list=document.getElementById('adminList'),settings=document.getElementById('groupSettingsPanel');
   if(settings)settings.hidden=view!=='settings';
   const panel=document.getElementById('groupManagementPanel');if(panel)panel.hidden=view!=='group';
