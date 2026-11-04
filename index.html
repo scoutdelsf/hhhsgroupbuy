@@ -1212,7 +1212,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.12.1</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.12.2</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -7027,7 +7027,7 @@ function renderGroupManagement() {
     +'<div role="status" aria-live="polite">'+escapeHtml(state.message||'')+'</div>'
     +(state.loaded?'<label for="groupManagerUser">選擇本群組成員</label><select id="groupManagerUser"'+locked+'><option value="">請選擇本群組成員</option>'
       +state.users.filter(u=>!state.admins.some(a=>a.user_id===u.user_id&&Number(a.enabled)===1)).map(u=>'<option value="'+escapeHtml(u.user_id)+'">'+escapeHtml(u.line_name||u.display_name||'LINE 使用者')+'</option>').join('')+'</select>'
-      +'<div class="muted" style="margin:6px 0;">僅列出已進入本群組團購系統且目前仍在群組的成員。若未出現，請對方先登入並選擇本群組，再更新資料。</div>'
+      +'<div class="muted" style="margin:6px 0;">已登入並對應本群組的使用者皆可指定。若未出現，請對方先登入並選擇本群組，再更新資料。</div>'
       +'<button type="button" onclick="saveCurrentGroupManager()"'+locked+'>設為群組管理者</button>'
       +'<h4>目前設定</h4>'+(state.admins.length?state.admins.map((a,i)=>'<div class="card" style="margin:8px 0;padding:12px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;"><span><strong>'+escapeHtml(a.line_name||'LINE 使用者')+'</strong> · '+(Number(a.enabled)===1?'啟用中':'已停用')+'</span>'
         +'<button type="button" class="outline" onclick="toggleCurrentGroupManager('+i+')"'+locked+'>'+(Number(a.enabled)===1?'停用權限':'重新啟用')+'</button></div>').join(''):'<p class="muted">尚未設定群組管理者。</p>'):'')
