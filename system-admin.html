@@ -330,7 +330,7 @@
         <h1>系統管理專區</h1>
         <div class="subtitle">跨 LINE 群組管理群組管理員權限</div>
       </div>
-      <div class="version">v0.12.0</div>
+      <div class="version">v0.12.1</div>
     </div>
 
     <section id="identityCard" class="card">
@@ -349,7 +349,7 @@
         <div class="form-grid">
           <div class="field">
             <label for="groupSelect">LINE 群組</label>
-            <select id="groupSelect">
+            <select id="groupSelect" onchange="loadSystemGroupUsers()">
               <option value="">請選擇群組</option>
             </select>
           </div>
@@ -558,6 +558,7 @@
       ) {
         userSelect.value = oldUserId;
       }
+      loadSystemGroupUsers();
     }
 
 
@@ -880,10 +881,21 @@ async function adminPost(action,payload) {
   if(action==='syncUser')return call('/api/auth/sync-user',payload||{});
   if(action==='systemAdminSaveGroupAdmin')return call('/api/system/group-admins',payload);
   if(action==='systemAdminGetAccessOverview') {
-    const [groups,users,admins]=await Promise.all([call('/api/system/groups'),call('/api/system/users'),call('/api/system/group-admins')]);
-    return {success:true,groups:groups.data.map(convert),users:users.data.map(convert),groupAdmins:admins.data.map(convert)};
+    const [groups,admins]=await Promise.all([call('/api/system/groups'),call('/api/system/group-admins')]);
+    return {success:true,groups:groups.data.map(convert),users:[],groupAdmins:admins.data.map(convert)};
   }
+  if(action==='systemAdminGroupUsers') {const result=await call('/api/system/users?groupId='+encodeURIComponent(payload.groupId));return {success:true,data:result.data.map(convert)};}
   throw new Error('不支援此管理操作');
+}
+
+let systemGroupUsersSequence=0;
+async function loadSystemGroupUsers(){
+  const group=document.getElementById('groupSelect'),select=document.getElementById('userSelect'),groupId=group.value,sequence=++systemGroupUsersSequence;
+  overview.users=[];select.innerHTML='<option value="">'+(groupId?'正在確認本群組成員…':'請先選擇群組')+'</option>';select.disabled=true;
+  if(!groupId)return;
+  try{const result=await adminPost('systemAdminGroupUsers',{groupId});if(sequence!==systemGroupUsersSequence||group.value!==groupId)return;
+    overview.users=result.data;select.innerHTML='<option value="">請選擇本群組成員</option>'+result.data.map(u=>'<option value="'+escapeAttribute(u.userId)+'" data-line-name="'+escapeAttribute(u.lineName||'')+'">'+escapeHtml(u.lineName||u.displayName||'LINE 使用者')+'</option>').join('');select.disabled=false;
+  }catch(error){if(sequence===systemGroupUsersSequence){select.innerHTML='<option value="">'+escapeHtml(error.message)+'</option>';}}
 }
 
     function shortenId(value) {
