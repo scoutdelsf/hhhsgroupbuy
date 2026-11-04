@@ -888,7 +888,7 @@
     /* 三個首頁頁簽固定吃滿整個寬度，不使用橫向滑動 */
     .home-tabs {
       display: grid !important;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 6px !important;
       width: 100%;
       overflow: visible !important;
@@ -1199,14 +1199,20 @@
       }
     }
 
-</style>
+#workspaceRoles { min-width:0; }
+    #workspaceRoles button { margin:0; white-space:normal; overflow:visible; line-height:1.4; }
+    .login-chip { flex-wrap:wrap; gap:4px; font-size:12px; padding:4px 6px; }
+    #groupSwitchButton { width:auto; margin:0 !important; white-space:nowrap; font-size:11px !important; padding:4px 6px !important; line-height:1.2; }
+    #groupSettingsPanel select, #groupManagementPanel select { min-width:0; max-width:100%; }
+    #groupSettingsPanel button, #groupManagementPanel button { width:auto; }
+    </style>
 </head>
 
 <body>
 <div class="container">
 
   <div class="header">
-    <div class="title">HHHS 團購系統 <span class="app-version">v0.11.5</span></div>
+    <div class="title">HHHS 團購系統 <span class="app-version">v0.12.0</span></div>
     <div class="subtitle">LINE 團購小幫手</div>
   </div>
 
@@ -1215,13 +1221,9 @@
 
     <div id="adminEntry" class="section" aria-busy="true">
       <div class="toolbar-actions" style="display:grid;grid-template-columns:1fr;gap:10px;">
-        <button id="adminEntryButton" type="button" disabled aria-describedby="adminEntryHint" onclick="openAdminPanel()">開團／團主管理區</button>
+        <div id="workspaceRoles" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;"></div>
       </div>
       <div id="adminEntryHint" class="muted" style="margin-top:8px;" role="status" aria-live="polite">驗證完成後即可操作</div>
-      <div id="myHostStats" class="my-host-stats">
-        <div>我的主揪開團中：<strong>--</strong></div>
-        <div>我的主揪已結案：<strong>--</strong></div>
-      </div>
     </div>
   </div>
 
@@ -1243,27 +1245,31 @@
 
     <div class="section">
       <div id="homeTabs" class="home-tabs">
+        <button class="home-tab" onclick="switchHomeTab('create')">我要開團</button>
         <button class="home-tab active" data-tab="open" onclick="switchHomeTab('open')">開團中</button>
         <button class="home-tab" data-tab="closed" onclick="switchHomeTab('closed')">近期關閉</button>
         <button class="home-tab" data-tab="suspended" onclick="switchHomeTab('suspended')">停權中</button>
       </div>
 
       <div id="openGroupBuySection" class="home-pane active">
-        <div class="section-subtitle">目前開放中的團購項目</div>
+        
+        <button type="button" class="outline" style="margin-bottom:10px;padding:5px 10px;" onclick="loadHomeTab('open',true)">更新資料</button>
         <div id="openLoading" class="message">正在載入團購資料...</div>
         <div id="openCarousel" class="carousel" style="display:none;"></div>
         <div id="openDots" class="dots" style="display:none;"></div>
       </div>
 
       <div id="closedGroupBuySection" class="home-pane">
-        <div class="section-subtitle">顯示近三個月已關閉的項目</div>
+        
+        <button type="button" class="outline" style="margin-bottom:10px;padding:5px 10px;" onclick="loadHomeTab('closed',true)">更新資料</button>
         <div id="closedLoading" class="message">正在載入歷史資料...</div>
         <div id="closedCarousel" class="carousel" style="display:none;"></div>
         <div id="closedDots" class="dots" style="display:none;"></div>
       </div>
 
       <div id="suspendedGroupBuySection" class="home-pane">
-        <div class="section-subtitle">目前暫停中的團購項目</div>
+        
+        <button type="button" class="outline" style="margin-bottom:10px;padding:5px 10px;" onclick="loadHomeTab('suspended',true)">更新資料</button>
         <div id="suspendedLoading" class="message">正在載入停權資料...</div>
         <div id="suspendedCarousel" class="carousel" style="display:none;"></div>
         <div id="suspendedDots" class="dots" style="display:none;"></div>
@@ -1390,6 +1396,8 @@
       <button id="adminViewAll" class="admin-view-tab" type="button" onclick="setAdminManagementView('all')">全部團購</button>
     </div>
 
+    <section id="groupSettingsPanel" class="message" hidden></section>
+    <section id="groupManagementPanel" class="message" hidden></section>
     <div id="adminList" class="message">正在載入管理資料...</div>
   </div>
 
@@ -1463,7 +1471,7 @@
 
         <input id="adminStatus" type="hidden" value="PENDING">
         <div id="newStatusLabel" class="muted" style="margin-top:12px;">
-          新建立的團購會先送出審核，通過後才會出現在「開團中」。
+          新建立的團購依群組設定決定是否需要審核，儲存後會告知結果。
         </div>
 
         <div class="admin-form-actions">
@@ -4847,6 +4855,7 @@ function handleOrderModalBackdrop(event) {
 ========================= */
 
 function openAdminPanel() {
+  resetGroupManagement();
   if (guestMode || !currentGroupSessionToken || managementEntryStatus !== 'ready') {
     alert('請從 LINE 群組的專屬團購入口開啟');
     return;
@@ -4987,6 +4996,7 @@ function loadAdminList() {
     if (roleBadge) {
       const roleLabelMap = {
         SYSTEM_ADMIN: '系統管理者',
+        GROUP_HELPER: '群組小幫手',
         GROUP_SUPER_ADMIN: '群組管理者',
         GROUP_BUY_ADMIN: '團購主'
       };
@@ -5036,13 +5046,15 @@ function loadAdminList() {
 
 
 function setAdminManagementView(viewName) {
+  if(viewName === 'group' && !canSetGroupManagers()) return;
   if (!canManageCurrentGroup) {
     currentAdminView = 'mine';
   } else {
     const allowed = [
       'mine',
       'pending',
-      'all'
+      'all',
+      'group'
     ];
 
     currentAdminView =
@@ -5111,7 +5123,8 @@ function refreshAdminManagementView() {
   const tabMap = {
     mine: 'adminViewMine',
     pending: 'adminViewPending',
-    all: 'adminViewAll'
+    all: 'adminViewAll',
+    group: 'adminViewGroup'
   };
 
   Object.keys(tabMap)
@@ -5154,6 +5167,8 @@ function isMyGroupBuy(item) {
 }
 
 function renderAdminList() {
+  updateGroupManagementVisibility();
+  if(currentAdminView === 'group' && canSetGroupManagers()) { renderGroupManagement(); return; }
   const box = document.getElementById('adminList');
 
   if (!window.adminGroupBuys.length) {
@@ -6967,14 +6982,99 @@ async function submitProxyPersonnel(){
   finally{state.saving=false;if(personnelCurrent(state))['proxyPersonnelOrder','proxyPersonnelTarget','proxyPersonnelSubmit','proxyPersonnelClose','proxyPersonnelBind','proxyPersonnelTransfer'].forEach(id=>document.getElementById(id).disabled=false);}
 }
 
+// Current-group access settings reuse the System Admin APIs and their server-side checks.
+let groupManagementState = null;
+function canSetGroupManagers() {
+  return !guestMode && currentManagementRole === 'SYSTEM_ADMIN' && !!currentGroupId && !!currentGroupSessionToken;
+}
+function updateGroupManagementVisibility() {
+  const tab=document.getElementById('adminViewGroup');
+  if(tab){tab.hidden=!canSetGroupManagers();tab.style.display=tab.hidden?'none':'';}
+  const panel=document.getElementById('groupManagementPanel');
+  if(panel)panel.hidden=currentAdminView!=='group'||!canSetGroupManagers();
+  const list=document.getElementById('adminList');
+  if(list)list.style.display=currentAdminView==='group'&&canSetGroupManagers()?'none':'';
+}
+function resetGroupManagement() {
+  groupManagementState=null;
+  const panel=document.getElementById('groupManagementPanel');if(panel){panel.hidden=true;panel.innerHTML='';}
+  const tab=document.getElementById('adminViewGroup');if(tab){tab.hidden=true;tab.style.display='none';}
+  const list=document.getElementById('adminList');if(list)list.style.display='';
+}
+async function groupManagementRequest(path,body) {
+  if(!canSetGroupManagers())throw new Error('需要系統管理者權限');
+  const generation=groupContextGeneration,groupId=currentGroupId,token=requireLineIdToken();
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);
+  try {
+    const response=await fetch(API_URL+path,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+      ...(body?{body:JSON.stringify(body)}:{}),credentials:'omit',signal:controller.signal});
+    const result=await response.json();
+    if(generation!==groupContextGeneration||groupId!==currentGroupId)throw Object.assign(new Error('群組已切換'),{code:'GROUP_CONTEXT_CHANGED'});
+    if(!response.ok||result.success!==true){const error=Object.assign(new Error(result.message||'群組管理資料讀取失敗'),{status:response.status});if(isLineAuthFailure(error))presentLineAuthRecovery();throw error;}
+    return result.data||[];
+  } catch(error){if(error.name==='AbortError')throw new Error('操作逾時，請更新資料確認結果');throw error;}
+  finally{clearTimeout(timer);}
+}
+function renderGroupManagement() {
+  updateGroupManagementVisibility();
+  if(!canSetGroupManagers()||currentAdminView!=='group')return;
+  const panel=document.getElementById('groupManagementPanel'),state=groupManagementState;
+  if(!panel)return;
+  if(!state||state.groupId!==currentGroupId){loadGroupManagement();return;}
+  const locked=state.busy?' disabled':'';
+  panel.innerHTML='<h3 style="margin-top:0;">'+escapeHtml(currentGroupName||'目前群組')+'｜群組管理</h3>'
+    +'<p class="muted">群組管理者可審核及管理本群組所有團購。此處由系統管理者設定。</p>'
+    +'<div role="status" aria-live="polite">'+escapeHtml(state.message||'')+'</div>'
+    +(state.loaded?'<label for="groupManagerUser">選擇已登記的使用者</label><select id="groupManagerUser"'+locked+'><option value="">請選擇使用者</option>'
+      +state.users.filter(u=>!state.admins.some(a=>a.user_id===u.user_id&&Number(a.enabled)===1)).map(u=>'<option value="'+escapeHtml(u.user_id)+'">'+escapeHtml(u.line_name||u.display_name||'LINE 使用者')+'</option>').join('')+'</select>'
+      +'<div class="muted" style="margin:6px 0;">對方須先登入本系統完成登記；設定後仍需符合該群組的進入資格。</div>'
+      +'<button type="button" onclick="saveCurrentGroupManager()"'+locked+'>設為群組管理者</button>'
+      +'<h4>目前設定</h4>'+(state.admins.length?state.admins.map((a,i)=>'<div class="card" style="margin:8px 0;padding:12px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;"><span><strong>'+escapeHtml(a.line_name||'LINE 使用者')+'</strong> · '+(Number(a.enabled)===1?'啟用中':'已停用')+'</span>'
+        +'<button type="button" class="outline" onclick="toggleCurrentGroupManager('+i+')"'+locked+'>'+(Number(a.enabled)===1?'停用權限':'重新啟用')+'</button></div>').join(''):'<p class="muted">尚未設定群組管理者。</p>'):'')
+    +'<button type="button" class="outline" style="margin-top:12px;" onclick="loadGroupManagement()"'+locked+'>更新資料</button>';
+}
+async function loadGroupManagement() {
+  if(!canSetGroupManagers()||groupManagementState?.busy)return;
+  const state={groupId:currentGroupId,busy:true,loaded:false,users:[],admins:[],message:'正在讀取群組管理資料…'};
+  groupManagementState=state;renderGroupManagement();
+  try {
+    const [users,admins]=await Promise.all([groupManagementRequest('/api/system/users'),groupManagementRequest('/api/system/group-admins?groupId='+encodeURIComponent(state.groupId))]);
+    if(groupManagementState!==state)return;
+    state.users=users;state.admins=admins.filter(a=>a.group_id===state.groupId);state.loaded=true;state.message='';
+  }catch(error){if(groupManagementState!==state)return;state.message=error.message;}
+  finally{if(groupManagementState===state){state.busy=false;renderGroupManagement();}}
+}
+async function saveCurrentGroupManager(userId,enabled=true) {
+  const state=groupManagementState;if(!canSetGroupManagers()||!state?.loaded||state.busy||state.groupId!==currentGroupId)return;
+  userId=userId||document.getElementById('groupManagerUser')?.value||'';
+  const target=state.users.find(u=>u.user_id===userId);
+  if(!target){state.message='請先選擇使用者';renderGroupManagement();return;}
+  if(!confirm('確定要'+(enabled?'啟用':'停用')+'「'+(target.line_name||target.display_name||'LINE 使用者')+'」在「'+currentGroupName+'」的群組管理權限？'))return;
+  state.busy=true;state.message='正在更新權限…';renderGroupManagement();
+  try {
+    await groupManagementRequest('/api/system/group-admins',{groupId:state.groupId,userId,enabled,role:'GROUP_SUPER_ADMIN'});
+    if(groupManagementState!==state)return;
+    const admins=await groupManagementRequest('/api/system/group-admins?groupId='+encodeURIComponent(state.groupId));
+    if(groupManagementState!==state)return;
+    state.admins=admins.filter(a=>a.group_id===state.groupId);state.message='群組管理權限已更新';
+  }catch(error){if(groupManagementState===state)state.message=error.message;}
+  finally{if(groupManagementState===state){state.busy=false;renderGroupManagement();}}
+}
+function toggleCurrentGroupManager(index) {
+  const state=groupManagementState,admin=state?.admins[index];if(admin&&!state.busy)saveCurrentGroupManager(admin.user_id,Number(admin.enabled)!==1);
+}
+
 let groupDirectory=[];
 let groupListBusy=false;
 let groupSelecting=false;
 let groupContextGeneration=0;
+let currentGroupId='';
 
 function resetGroupContext() {
+  resetGroupManagement();
+  resetWorkspace();
   groupContextGeneration++;
-  currentGroupSessionToken='';currentGroupName='';currentGroupKey='';currentBuy=null;
+  currentGroupSessionToken='';currentGroupName='';currentGroupKey='';currentGroupId='';currentBuy=null;
   orderDataReady=false;selectedOrderId='';proxyUsersLoaded=false;proxyUsers=[];
   participantsRequestSequence++;participantsViewState=null;
   window.currentGroupBuys=[];window.currentClosedGroupBuys=[];window.currentSuspendedGroupBuys=[];
@@ -7034,13 +7134,15 @@ async function chooseGroup(groupId) {
   groupSelecting=true;setManagementEntryState('group');renderGroupDirectory('正在確認群組資格…');
   try {
     const result=await adminPost('selectGroup',{groupId});
-    currentGroupSessionToken=result.sessionToken;currentGroupName=result.groupName||'LINE 群組';
+    currentGroupSessionToken=result.sessionToken;currentGroupName=result.groupName||'LINE 群組';currentGroupId=result.groupId;
     const summary=document.createElement('div');summary.id='currentGroupSummary';summary.className='muted';summary.style.marginTop='8px';
     const label=document.createElement('strong');label.textContent='群組：'+currentGroupName;summary.appendChild(label);
-    const change=document.createElement('button');change.type='button';change.className='outline';change.style.cssText='margin-left:8px;font-size:13px;padding:5px 10px;';change.textContent='切換群組';change.addEventListener('click',openGroupPicker);summary.appendChild(change);
+    document.getElementById('groupSwitchButton')?.remove();
+    const change=document.createElement('button');change.id='groupSwitchButton';change.type='button';change.className='outline';change.style.cssText='margin-left:8px;font-size:13px;padding:5px 10px;';change.textContent='切換群組';change.addEventListener('click',openGroupPicker);
+    (document.querySelector('.login-chip')||document.getElementById('userBox')).appendChild(change);
     document.getElementById('userBox').appendChild(summary);
     document.getElementById('groupPicker').hidden=true;document.getElementById('homePanel').style.display='block';
-    checkAdminStatus();switchHomeTab('open');loadOpenGroupBuys();loadClosedGroupBuys();loadSuspendedGroupBuys();
+    enterGroupWorkspace(result.managementRole);
   } catch(error) {
     currentGroupSessionToken='';setManagementEntryState('choose');
     if(!isLineAuthFailure(error))renderGroupDirectory(error.message||'無法進入此群組，請更新群組清單。');
@@ -7289,5 +7391,131 @@ document.addEventListener('keydown', function(event) {
 
 </script>
 
+<script>
+let workspaceRole='MEMBER';
+let workspaceAuthority='GROUP_BUY_ADMIN';
+let homeTabCache=new Map();
+let managementCache=new Map();
+let managementSequence=0;
+let settingsState=null;
+function resetWorkspace(){homeTabCache=new Map();managementCache=new Map();managementSequence++;settingsState=null;workspaceRole='MEMBER';workspaceAuthority='GROUP_BUY_ADMIN';const roles=document.getElementById('workspaceRoles');if(roles)roles.innerHTML='';const settings=document.getElementById('groupSettingsPanel');if(settings){settings.hidden=true;settings.innerHTML='';}}
+function enterGroupWorkspace(role){
+  workspaceAuthority=role||'GROUP_BUY_ADMIN';currentManagementRole=workspaceAuthority;
+  checkAdminStatus();currentManagementRole=workspaceAuthority;
+  renderWorkspaceRoles();switchWorkspaceRole('MEMBER');
+}
+function renderWorkspaceRoles(){
+  const box=document.getElementById('workspaceRoles');if(!box)return;
+  const roles=[['MEMBER','團員'],['HOST','團主']];
+  if(workspaceAuthority!=='GROUP_BUY_ADMIN')roles.push(['MANAGER',workspaceAuthority==='GROUP_HELPER'?'團管理者（小幫手）':'團管理者']);
+  if(workspaceAuthority==='SYSTEM_ADMIN')roles.push(['SYSTEM','系統管理者']);
+  box.innerHTML=roles.map(([id,label])=>'<button type="button" class="outline" onclick="switchWorkspaceRole(\''+id+'\')"'+(workspaceRole===id?' disabled aria-pressed="true"':' aria-pressed="false"')+'>'+label+'</button>').join('');
+}
+function switchWorkspaceRole(role){
+  if(guestMode||!currentGroupSessionToken)return;
+  if(!['MEMBER','HOST','MANAGER','SYSTEM'].includes(role))return;
+  if(role==='SYSTEM'&&workspaceAuthority!=='SYSTEM_ADMIN')return;
+  if(role==='MANAGER'&&workspaceAuthority==='GROUP_BUY_ADMIN')return;
+  if(participantsViewState?.paymentBusy||settingsState?.busy||groupManagementState?.busy){alert('請等目前操作完成');return;}
+  const form=document.getElementById('adminFormPanel');
+  if(form&&!['','none'].includes(form.style.display)){alert('請先完成或關閉開團表單');return;}
+  managementSequence++;workspaceRole=role;currentManagementRole=workspaceAuthority;
+  canManageCurrentGroup=role==='MANAGER';isAdmin=canManageCurrentGroup;currentAdminView=role==='MANAGER'?'pending':'mine';
+  document.getElementById('homePanel').style.display=role==='MEMBER'?'block':'none';
+  document.getElementById('adminPanel').style.display=role==='MEMBER'?'none':'block';
+  document.getElementById('homeToolbar').style.display='grid';
+  const badge=document.getElementById('adminRoleBadge');if(badge)badge.textContent=role==='SYSTEM'?'系統管理者':role==='MANAGER'?(workspaceAuthority==='GROUP_HELPER'?'群組小幫手':'群組管理者'):'團購主';
+  const tabs=document.getElementById('adminViewTabs');if(tabs){tabs.classList.add('show');tabs.innerHTML=role==='SYSTEM'?'<button class="admin-view-tab" onclick="setAdminManagementView(\'group\')">群組管理</button>':role==='HOST'?'<button class="admin-view-tab active" disabled>我的團購</button>':'<button class="admin-view-tab" onclick="setAdminManagementView(\'pending\')">待審核</button><button class="admin-view-tab" onclick="setAdminManagementView(\'all\')">全部團購</button>'+(workspaceAuthority!=='GROUP_HELPER'?'<button class="admin-view-tab" onclick="setAdminManagementView(\'settings\')">群組設定</button>':'');}
+  const actions=document.querySelector('#adminPanel .admin-panel-actions');if(actions)actions.style.display=role==='HOST'?'flex':'none';
+  if(tabs)tabs.style.gridTemplateColumns=role==='MANAGER'?(workspaceAuthority==='GROUP_HELPER'?'repeat(2,minmax(0,1fr))':'repeat(3,minmax(0,1fr))'):'1fr';
+  const title=document.getElementById('adminPanelTitle');if(title)title.textContent=role==='SYSTEM'?'系統管理':role==='MANAGER'?'團管理者專區':'我的團購';
+  const settings=document.getElementById('groupSettingsPanel');if(settings)settings.hidden=true;
+  const personnel=document.getElementById('groupManagementPanel');if(personnel)personnel.hidden=true;
+  renderWorkspaceRoles();
+  if(role==='MEMBER'){switchHomeTab('open');return;}
+  if(role==='SYSTEM'){document.getElementById('adminList').style.display='block';document.getElementById('adminList').textContent='請點選「群組管理」設定目前群組的管理者。';return;}
+  showManagementView(currentAdminView);
+}
+const originalHomeSwitch=switchHomeTab;
+switchHomeTab=function(tab){
+  if(tab==='create'){if(!guestMode)openCreateForm();return;}
+  originalHomeSwitch(tab);
+  if(!guestMode&&workspaceRole==='MEMBER'&&currentGroupSessionToken)loadHomeTab(tab);
+};
+async function loadHomeTab(tab,force=false){
+  if(guestMode){if(tab==='open'&&force)return loadGuestSharedGroupBuy();return;}
+  const config={open:['openGroupBuys','currentGroupBuys','openCarousel','openDots','openLoading',true],closed:['recentClosedGroupBuys','currentClosedGroupBuys','closedCarousel','closedDots','closedLoading',false],suspended:['suspendedGroupBuys','currentSuspendedGroupBuys','suspendedCarousel','suspendedDots','suspendedLoading',false,'SUSPENDED']}[tab];
+  if(!config||guestMode||!currentGroupSessionToken)return;
+  if(!force&&homeTabCache.has(tab))return;
+  if(homeTabCache.get(tab)?.busy)return;
+  const entry={busy:true},generation=groupContextGeneration;homeTabCache.set(tab,entry);
+  try{
+    const result=await adminPost(config[0],{});
+    if(generation!==groupContextGeneration||homeTabCache.get(tab)!==entry)return;
+    window[config[1]]=result.data||[];entry.busy=false;
+    renderCarousel(window[config[1]],...config.slice(2));
+  }catch(error){if(generation===groupContextGeneration&&homeTabCache.get(tab)===entry){homeTabCache.delete(tab);showRetry(config[4],error.message,'loadHomeTab(\''+tab+'\',true)');}}
+}
+loadOpenGroupBuys=()=>{homeTabCache.delete('open');if(workspaceRole==='MEMBER')return loadHomeTab('open',true);};
+loadClosedGroupBuys=()=>{homeTabCache.delete('closed');};
+loadSuspendedGroupBuys=()=>{homeTabCache.delete('suspended');};
+refreshMyHostStats=()=>{};
+openAdminPanel=()=>switchWorkspaceRole('HOST');
+closeAdminPanel=()=>switchWorkspaceRole('MEMBER');
+loadAdminList=()=>{managementCache.clear();homeTabCache.clear();return showManagementView(currentAdminView);};
+refreshAdminManagementView=()=>showManagementView(currentAdminView);
+setAdminManagementView=view=>showManagementView(view);
+async function showManagementView(view){
+  if(guestMode||workspaceRole==='MEMBER')return;
+  const sys=workspaceRole==='SYSTEM',manager=workspaceRole==='MANAGER';
+  if(sys&&view!=='group')return;
+  if(!sys&&!manager&&view!=='mine')return;
+  if(manager&&!['pending','all','settings'].includes(view))return;
+  if(view==='settings'&&workspaceAuthority==='GROUP_HELPER')return;
+  currentAdminView=view;const sequence=++managementSequence;
+  const list=document.getElementById('adminList'),settings=document.getElementById('groupSettingsPanel');
+  if(settings)settings.hidden=view!=='settings';
+  const panel=document.getElementById('groupManagementPanel');if(panel)panel.hidden=view!=='group';
+  list.style.display=['settings','group'].includes(view)?'none':'block';
+  if(view==='group'){renderGroupManagement();return;}
+  if(view==='settings'){await loadGroupSettings();return;}
+  if(managementCache.has(view)){window.adminGroupBuys=managementCache.get(view);renderAdminList();return;}
+  list.textContent='正在載入團購資料…';
+  try{const r=await adminPost('myGroupBuys',{view});if(sequence!==managementSequence)return;window.adminGroupBuys=r.data||[];managementCache.set(view,window.adminGroupBuys);renderAdminList();}
+  catch(error){if(sequence===managementSequence)list.innerHTML='<span class="error">'+escapeHtml(error.message)+'</span><button class="outline" onclick="showManagementView(\''+view+'\')">重新讀取</button>';}
+}
+async function loadGroupSettings(force=false){
+  if(workspaceRole!=='MANAGER'||workspaceAuthority==='GROUP_HELPER')return;
+  if(settingsState?.busy)return;
+  if(settingsState?.data&&!force){renderGroupSettings();return;}
+  const state={busy:true,data:null,message:'正在讀取設定…'},generation=groupContextGeneration;settingsState=state;renderGroupSettings();
+  try{const r=await adminPost('groupConfiguration',{});if(generation!==groupContextGeneration||settingsState!==state)return;state.data=r;state.message='';}
+  catch(error){if(settingsState===state)state.message=error.message;}
+  finally{if(settingsState===state){state.busy=false;renderGroupSettings();}}
+}
+function renderGroupSettings(){
+  const panel=document.getElementById('groupSettingsPanel'),s=settingsState;if(!panel||!s)return;
+  const d=s.data,lock=s.busy?' disabled':'';
+  const label=id=>d.users.find(u=>u.userId===id)?.lineName||'LINE 使用者';
+  const people=(kind,values)=>values.map((u,i)=>'<div style="display:flex;justify-content:space-between;gap:10px;margin:8px 0;"><span>'+escapeHtml(label(u.userId))+' · '+(u.enabled?'啟用中':'已停用')+'</span><button class="outline" onclick="saveGroupSetting(\''+kind+'\','+(!u.enabled)+',\''+escapeJs(u.userId)+'\')"'+lock+'>'+(u.enabled?'停用':'啟用')+'</button></div>').join('');
+  const select=(id,values)=>'<select id="'+id+'"'+lock+'><option value="">請選擇已進入本群組的使用者</option>'+d.users.filter(u=>!values.some(x=>x.userId===u.userId&&x.enabled)).map(u=>'<option value="'+escapeHtml(u.userId)+'">'+escapeHtml(u.lineName)+'</option>').join('')+'</select>';
+  panel.innerHTML='<h3>'+escapeHtml(currentGroupName)+'｜群組設定</h3><p role="status">'+escapeHtml(s.message)+'</p>'+(d?
+    '<h4>新團購審核</h4><p>目前：'+(d.approvalRequired?'需要審核':'免審核，儲存後直接開放')+'</p><button class="outline" onclick="saveGroupSetting(\'approval\','+(!d.approvalRequired)+')"'+lock+'>'+(d.approvalRequired?'改為全群免審核':'改為需要審核')+'</button><p class="muted">只影響之後新開的團，既有待審核團購維持原狀。</p>'
+    +'<h4>指定開團免審核</h4>'+select('exemptUser',d.exemptions)+'<button onclick="saveGroupSetting(\'exemption\',true)"'+lock+'>新增免審核人員</button>'+people('exemption',d.exemptions)
+    +'<h4>群組小幫手</h4><p class="muted">可協助審核、修改、結團、停權及管理訂單收款；不能變更人員權限或審核規則。</p>'+select('helperUser',d.helpers)+'<button onclick="saveGroupSetting(\'helper\',true)"'+lock+'>新增小幫手</button>'+people('helper',d.helpers):'')
+    +'<button class="outline" style="margin-top:12px;" onclick="loadGroupSettings(true)"'+lock+'>更新設定</button>';
+}
+async function saveGroupSetting(kind,enabled,userId){
+  const s=settingsState;if(!s?.data||s.busy||workspaceRole!=='MANAGER'||workspaceAuthority==='GROUP_HELPER')return;
+  userId=userId||document.getElementById(kind==='helper'?'helperUser':'exemptUser')?.value||'';
+  if(kind!=='approval'&&!userId){s.message='請先選擇使用者';renderGroupSettings();return;}
+  if(!confirm('確定更新此群組設定？'+(kind==='approval'?'只影響之後新開的團。':'')))return;
+  s.busy=true;s.message='正在更新…';renderGroupSettings();
+  try{const r=await adminPost('saveGroupConfiguration',{kind,enabled,...(kind==='approval'?{}:{userId}),expectedVersion:s.data.version});if(settingsState!==s)return;s.data=r;s.message='設定已更新';}
+  catch(error){if(settingsState===s)s.message=error.message+'；可按更新設定重新讀取。';}
+  finally{if(settingsState===s){s.busy=false;renderGroupSettings();}}
+}
+
+</script>
 </body>
 </html>
